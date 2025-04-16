@@ -1,6 +1,11 @@
 {% extends "layout.html" %}
 {% block content %}
 <h2>주문하기</h2>
+
+<!-- ★ 뒤로가기 버튼 추가 (주문 폼 이전 페이지로) -->
+<button type="button" onclick="history.back()">뒤로가기</button>
+<hr />
+
 <form method="POST">
   <div>
     <label>테이블 번호: </label>
@@ -23,8 +28,8 @@
   <div>
     <p>최초 주문 시 주의사항:</p>
     <ul>
-      <li>이용시간은 최초 주문 제출 시점으로부터 정확히 60분입니다.</li>
-      <li>3명당 메인안주 1개 필수 (예: 5명->1개, 6명->2개)</li>
+      <li>이용시간은 최초 주문 제출 시점부터 120분...</li>
+      <li>3명당 메인안주 1개 필수...</li>
       <li>최초 주문 시 맥주는 최대 1병(1L)만 제공</li>
       <!-- 기타 주의사항 -->
     </ul>
@@ -64,6 +69,7 @@
     {% endfor %}
   </table>
   <p>
+    <!-- 제출 후 POST -> redirect -> 결과 페이지로 이동 -->
     <button type="submit">주문 제출</button>
   </p>
 </form>
