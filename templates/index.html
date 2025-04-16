@@ -1,9 +1,29 @@
 {% extends "layout.html" %}
 {% block content %}
-<p>간단 안내 페이지입니다.</p>
-<ul>
-  <li><a href="{{ url_for('order') }}">주문자용: 주문하기</a></li>
-  <li><a href="{{ url_for('admin') }}">관리자용: 주문 관리</a></li>
-  <li><a href="{{ url_for('kitchen') }}">주방용: 주문 확인</a></li>
-</ul>
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-8">
+      <div class="card shadow">
+        <div class="card-header bg-dark text-white text-center">
+          <h2>안내 페이지</h2>
+        </div>
+        <div class="card-body">
+          <p class="card-text">주문을 원하실 경우, [주문자용: 주문하기]를 선택해 주세요.</p>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <a href="{{ url_for('order') }}" class="btn btn-primary btn-block">주문자용: 주문하기</a>
+            </li>
+            <li class="list-group-item">
+              <a href="{{ url_for('admin') }}" class="btn btn-warning btn-block">관리자용: 주문 관리</a>
+            </li>
+            <li class="list-group-item">
+              <a href="{{ url_for('kitchen') }}" class="btn btn-success btn-block">주방용: 주문 확인</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
+
