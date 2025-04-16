@@ -1,10 +1,6 @@
 {% extends "layout.html" %}
 {% block content %}
 <h2>주방용 페이지</h2>
-<p>
-  <a href="{{ url_for('index') }}">← 메인으로</a> |
-  <a href="{{ url_for('logout') }}">로그아웃</a>
-</p>
 
 <h3>1) 현재 확정된(결제완료) 주문 목록</h3>
 <ol>
@@ -56,5 +52,5 @@
     <li>현재 만들 메뉴가 없습니다.</li>
   {% endif %}
 </ul>
-
 {% endblock %}
+
