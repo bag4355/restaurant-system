@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>주방용 페이지</h2>
+<p><a href="{{ url_for('index') }}">← 메인으로</a></p>
+
+<h3>1) 현재 확정된(결제완료) 주문 목록</h3>
+<ol>
+  {% for o in paid_orders %}
+  <li>
+    <strong>{{ o.id }}</strong> / 테이블: {{ o.tableNumber }}
+    {% if o.get('kitchenDone') %}
+      <span style="color:blue;">[조리완료]</span>
+    {% else %}
+      <form action="{{ url_for('kitchen_done', order_id=o.id) }}" method="POST" style="display:inline;">
+        <button type="submit">조리 완료</button>
+      </form>
+    {% endif %}
+    <br>
+    - 주문메뉴:
+    <ul>
+      {% for i in o.items %}
+      <li>메뉴ID {{ i.menuId }} (수량 {{ i.quantity }})</li>
+      {% endfor %}
+    </ul>
+  </li>
+  {% endfor %}
+  {% if paid_orders|length == 0 %}
+    <li>확정된 주문이 없습니다.</li>
+  {% endif %}
+</ol>
+
+<hr />
+<h3>2) 현재 만들어야 할 전체 메뉴 수량</h3>
+<ul>
+  {% for item in kitchen_status %}
+  <li>{{ item.menuName }}: {{ item.count }}개</li>
+  {% endfor %}
+  {% if kitchen_status|length == 0 %}
+    <li>현재 만들 메뉴가 없습니다.</li>
+  {% endif %}
+</ul>
+
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>주문하기</h2>
+<form method="POST">
+  <div>
+    <label>테이블 번호: </label>
+    <select name="tableNumber">
+      <option value="">-- 선택 --</option>
+      <option value="TAKEOUT">TAKEOUT</option>
+      {% for i in range(13) %}
+      <option value="{{ i }}">{{ i }}번</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>최초 주문 or 추가 주문: </label>
+    <select name="isFirstOrder">
+      <option value="true">최초 주문</option>
+      <option value="false">추가 주문</option>
+    </select>
+  </div>
+  <hr />
+  <div>
+    <p>최초 주문 시 주의사항:</p>
+    <ul>
+      <li>이용시간은 최초 주문 제출 시점으로부터 정확히 120분입니다.</li>
+      <li>3명당 메인안주 1개 필수 (예: 5명->1개, 6명->2개)</li>
+      <li>최초 주문 시 맥주는 최대 1병(1L)만 제공</li>
+      <!-- 등등 -->
+    </ul>
+    <div>
+      <label><input type="checkbox" name="noticeChecked"> 주의사항을 꼼꼼히 확인하였습니다.</label>
+    </div>
+    <div>
+      <label>인원수: <input type="number" name="peopleCount" min="1" value="1"></label>
+    </div>
+  </div>
+  <hr />
+  <h3>메뉴 주문</h3>
+  <table border="1" cellpadding="8" cellspacing="0">
+    <tr>
+      <th>메뉴명</th>
+      <th>가격</th>
+      <th>주문수량</th>
+      <th>비고(품절여부)</th>
+    </tr>
+    {% for m in menu_items %}
+    <tr>
+      <td>{{ m.name }}</td>
+      <td>{{ m.price }}</td>
+      <td>
+        {% if m.soldOut %}
+          품절
+        {% else %}
+          <input type="number" name="qty_{{m.id}}" value="0" min="0" style="width:60px;">
+        {% endif %}
+      </td>
+      <td>
+        {% if m.soldOut %}
+          <span style="color:red;">[품절중]</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p>
+    <button type="submit">주문 제출</button>
+  </p>
+</form>
+{% endblock %}

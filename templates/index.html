@@ -1,0 +1,9 @@
+{% extends "layout.html" %}
+{% block content %}
+<p>간단 안내 페이지입니다.</p>
+<ul>
+  <li><a href="{{ url_for('order') }}">주문자용: 주문하기</a></li>
+  <li><a href="{{ url_for('admin') }}">관리자용: 주문 관리</a></li>
+  <li><a href="{{ url_for('kitchen') }}">주방용: 주문 확인</a></li>
+</ul>
+{% endblock %}

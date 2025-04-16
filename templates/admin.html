@@ -1,0 +1,73 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>관리자 페이지</h2>
+<p><a href="{{ url_for('index') }}">← 메인으로</a></p>
+
+<h3>1) 대기중(미확인) 주문</h3>
+<ul>
+  {% for o in pending_orders %}
+  <li>
+    <strong>{{ o.id }}</strong> / 테이블: {{ o.tableNumber }} / 총액: {{ o.totalPrice }}원
+    <form action="{{ url_for('admin_confirm', order_id=o.id) }}" method="POST" style="display:inline;">
+      <button type="submit">입금확인/확정</button>
+    </form>
+  </li>
+  {% endfor %}
+  {% if pending_orders|length == 0 %}
+    <li>대기중인 주문이 없습니다.</li>
+  {% endif %}
+</ul>
+
+<h3>2) 확정(결제완료) 주문</h3>
+<ul>
+  {% for o in paid_orders %}
+  <li>
+    <strong>{{ o.id }}</strong> / 테이블: {{ o.tableNumber }} / 총액: {{ o.totalPrice }}원
+    {% if o.get('kitchenDone') %}
+      (주방: 조리완료)
+    {% endif %}
+    <form action="{{ url_for('admin_complete', order_id=o.id) }}" method="POST" style="display:inline;">
+      <button type="submit">최종 완료</button>
+    </form>
+  </li>
+  {% endfor %}
+  {% if paid_orders|length == 0 %}
+    <li>확정된 주문이 없습니다.</li>
+  {% endif %}
+</ul>
+
+<h3>3) 완료된 주문</h3>
+<ul>
+  {% for o in completed_orders %}
+  <li>
+    <strong>{{ o.id }}</strong> / 테이블: {{ o.tableNumber }} / 총액: {{ o.totalPrice }}원 (완료됨)
+  </li>
+  {% endfor %}
+  {% if completed_orders|length == 0 %}
+    <li>완료된 주문이 없습니다.</li>
+  {% endif %}
+</ul>
+
+<hr />
+<h3>메뉴 품절 처리</h3>
+<table border="1" cellpadding="8" cellspacing="0">
+  <tr>
+    <th>메뉴명</th>
+    <th>가격</th>
+    <th>품절 여부</th>
+    <th>액션</th>
+  </tr>
+  {% for m in menu_items %}
+  <tr>
+    <td>{{ m.name }}</td>
+    <td>{{ m.price }}</td>
+    <td>{{ "품절" if m.soldOut else "재고있음" }}</td>
+    <td>
+      <form action="{{ url_for('admin_soldout', menu_id=m.id) }}" method="POST">
+        <button type="submit">{{ "품절해제" if m.soldOut else "품절처리" }}</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}
