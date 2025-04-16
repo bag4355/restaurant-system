@@ -322,5 +322,5 @@ def kitchen_done(order_id):
 
 # 메인 실행
 if __name__ == "__main__":
-    # Flask 실행 (개발모드)
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
