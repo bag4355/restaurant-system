@@ -1,7 +1,10 @@
 {% extends "layout.html" %}
 {% block content %}
 <h2>주방용 페이지</h2>
-<p><a href="{{ url_for('index') }}">← 메인으로</a></p>
+<p>
+  <a href="{{ url_for('index') }}">← 메인으로</a> |
+  <a href="{{ url_for('logout') }}">로그아웃</a>
+</p>
 
 <h3>1) 현재 확정된(결제완료) 주문 목록</h3>
 <ol>
@@ -9,17 +12,31 @@
   <li>
     <strong>{{ o.id }}</strong> / 테이블: {{ o.tableNumber }}
     {% if o.get('kitchenDone') %}
-      <span style="color:blue;">[조리완료]</span>
+      <span style="color:blue;">[조리 전체 완료]</span>
     {% else %}
-      <form action="{{ url_for('kitchen_done', order_id=o.id) }}" method="POST" style="display:inline;">
-        <button type="submit">조리 완료</button>
-      </form>
+      <span style="color:red;">[조리 진행중]</span>
     {% endif %}
     <br>
     - 주문메뉴:
     <ul>
       {% for i in o["items"] %}
-      <li>메뉴ID {{ i.menuId }} (수량 {{ i.quantity }})</li>
+        <li>
+          메뉴ID {{ i.menuId }}
+          <br>
+          주문수량: {{ i.quantity }} /
+          이미 조리완료: {{ i.doneQuantity }} /
+          남은수량: {{ i.quantity - i.doneQuantity }}
+          <br>
+          {% if i.doneQuantity < i.quantity %}
+            <!-- 조리 1개 완료 처리 폼 -->
+            <form action="{{ url_for('kitchen_done_item', order_id=o.id, menu_id=i.menuId) }}" method="POST" style="display:inline;">
+              <button type="submit">조리 1개 완료</button>
+            </form>
+          {% else %}
+            <span style="color:green;">[이 메뉴는 이미 조리 완료]</span>
+          {% endif %}
+          <hr>
+        </li>
       {% endfor %}
     </ul>
   </li>
@@ -30,7 +47,7 @@
 </ol>
 
 <hr />
-<h3>2) 현재 만들어야 할 전체 메뉴 수량</h3>
+<h3>2) 현재 만들어야 할 전체 메뉴 수량(미조리 부분)</h3>
 <ul>
   {% for item in kitchen_status %}
   <li>{{ item.menuName }}: {{ item.count }}개</li>
