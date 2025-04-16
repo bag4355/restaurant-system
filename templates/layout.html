@@ -2,11 +2,24 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Flask Restaurant</title>
+  <title>플라스크 주점 시스템</title>
 </head>
 <body>
   <h1>플라스크 주점 시스템</h1>
+  
+  <!-- 상단에 로그인/로그아웃 링크 영역 -->
+  <div>
+    {% if session.get("role") %}
+      <span>로그인됨: {{ session["role"] }}</span>
+      | <a href="{{ url_for('logout') }}">로그아웃</a>
+    {% else %}
+      <a href="{{ url_for('login') }}">로그인</a>
+    {% endif %}
+  </div>
+
   <hr />
+
+  <!-- Flash 메시지 표시 (에러, 안내 등) -->
   {% with messages = get_flashed_messages() %}
     {% if messages %}
       <ul style="color:red;">
