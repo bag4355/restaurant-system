@@ -5,7 +5,7 @@
 <!-- 로그 페이지 링크 -->
 <p><a href="{{ url_for('admin_log_page') }}">로그 기록 보기</a></p>
 
-<h3>1) 대기중(미확인) 주문</h3>
+<h3>1)입금 확인이 필요한 주문</h3>
 <ul>
   {% for o in pending_orders %}
   <li>
@@ -20,7 +20,7 @@
   {% endif %}
 </ul>
 
-<h3>2) 확정(결제완료) 주문</h3>
+<h3>2)조리 중인 주문(입금확정 완료)</h3>
 <ul>
   {% for o in paid_orders %}
   <li>
@@ -38,7 +38,7 @@
   {% endif %}
 </ul>
 
-<h3>3) 완료된 주문</h3>
+<h3>3)조리 완료된 주문(과거 주문)</h3>
 <ul>
   {% for o in completed_orders %}
   <li>
