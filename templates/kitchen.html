@@ -2,10 +2,6 @@
 {% block content %}
 <h2>주방용 페이지</h2>
 
-<!-- ★ 뒤로가기 버튼 추가 -->
-<button type="button" onclick="history.back()">뒤로가기</button>
-<hr />
-
 <h3>1) 현재 확정된(결제완료) 주문 목록</h3>
 <ol>
   {% for o in paid_orders %}
@@ -28,7 +24,7 @@
           남은수량: {{ i.quantity - i.doneQuantity }}
           <br>
           {% if i.doneQuantity < i.quantity %}
-            <!-- 조리 1개 완료 처리: POST -> redirect -> GET(새로고침) -->
+            <!-- 조리 1개 완료 처리 폼 -->
             <form action="{{ url_for('kitchen_done_item', order_id=o.id, menu_id=i.menuId) }}" method="POST" style="display:inline;">
               <button type="submit">조리 1개 완료</button>
             </form>
