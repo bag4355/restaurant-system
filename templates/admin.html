@@ -2,16 +2,14 @@
 {% block content %}
 <h2>관리자 페이지</h2>
 
-<!-- ★ 뒤로가기 버튼 추가 -->
-<button type="button" onclick="history.back()">뒤로가기</button>
-<hr />
+<!-- 로그 페이지 링크 -->
+<p><a href="{{ url_for('admin_log_page') }}">로그 기록 보기</a></p>
 
 <h3>1) 대기중(미확인) 주문</h3>
 <ul>
   {% for o in pending_orders %}
   <li>
     <strong>{{ o.id }}</strong> / 테이블: {{ o.tableNumber }} / 총액: {{ o.totalPrice }}원
-    <!-- POST -> redirect -> GET 구조로 새로고침 -->
     <form action="{{ url_for('admin_confirm', order_id=o.id) }}" method="POST" style="display:inline;">
       <button type="submit">입금확인/확정</button>
     </form>
@@ -67,7 +65,6 @@
     <td>{{ m.price }}</td>
     <td>{{ "품절" if m.soldOut else "재고있음" }}</td>
     <td>
-      <!-- POST -> redirect -> GET -->
       <form action="{{ url_for('admin_soldout', menu_id=m.id) }}" method="POST">
         <button type="submit">{{ "품절해제" if m.soldOut else "품절처리" }}</button>
       </form>
