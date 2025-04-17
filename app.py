@@ -33,7 +33,8 @@ def load_data():
                 {"id": 6, "name": "사이다",    "price": 2000,  "category": "drink","soldOut": False},
                 {"id": 7, "name": "생수",      "price": 1000,  "category": "drink","soldOut": False},
             ],
-            "orders": []
+            "orders": [],
+            "logs": []
         }
     with open(DATA_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
@@ -43,6 +44,26 @@ def save_data(d):
         json.dump(d, f, ensure_ascii=False, indent=2)
 
 data = load_data()
+# logs 필드가 없을 경우 대비
+if "logs" not in data:
+    data["logs"] = []
+
+##########################################
+# 로그 기록 함수
+##########################################
+def add_log(action, detail):
+    """
+    - action: 예) 'CONFIRM_ORDER', 'COMPLETE_ORDER', 'KITCHEN_DONE_ITEM', 'SOLDOUT_TOGGLE'
+    - detail: 구체 정보(주문ID, 메뉴ID 등)
+    """
+    new_log = {
+        "time": int(time.time()),
+        "role": session.get("role", "unknown"),  # 누가 작업했는지
+        "action": action,
+        "detail": detail
+    }
+    data["logs"].append(new_log)
+    save_data(data)
 
 ##########################################
 # 시간 체크(50분/60분) 스레드
@@ -114,12 +135,11 @@ def login():
         input_id = request.form.get("userid")
         input_pw = request.form.get("userpw")
 
-        # 1) 관리자 계정
         if input_id == ADMIN_ID and input_pw == ADMIN_PW:
             session["role"] = "admin"
             flash("관리자 계정으로 로그인되었습니다.")
             return redirect(url_for("admin"))
-        # 2) 주방 계정
+
         if input_id == KITCHEN_ID and input_pw == KITCHEN_PW:
             session["role"] = "kitchen"
             flash("주방 계정으로 로그인되었습니다.")
@@ -167,7 +187,7 @@ def order():
             if qty_str.isdigit():
                 qty = int(qty_str)
                 if qty > 0:
-                    # 초기 doneQuantity=0 추가
+                    # 초기 doneQuantity=0 추가 (주방 조리용)
                     ordered_items.append({"menuId": m["id"], "quantity": qty, "doneQuantity": 0})
 
         # 유효성 검증
@@ -212,7 +232,7 @@ def order():
 
         # 품절 체크
         for oi in ordered_items:
-            menu_obj = next((m for m in data["menuItems"] if m["id"] == oi["menuId"]), None)
+            menu_obj = next((x for x in data["menuItems"] if x["id"] == oi["menuId"]), None)
             if menu_obj and menu_obj["soldOut"]:
                 flash(f"품절된 메뉴가 포함되어 있습니다: {menu_obj['name']}")
                 return redirect(url_for("order"))
@@ -283,6 +303,7 @@ def admin_confirm(order_id):
     order["status"] = "paid"
     order["confirmedAt"] = int(time.time())
     save_data(data)
+    add_log("CONFIRM_ORDER", f"주문ID={order_id} 확정")
     flash(f"{order_id} 주문이 확정되었습니다.")
     return redirect(url_for("admin"))
 
@@ -299,6 +320,7 @@ def admin_complete(order_id):
 
     order["status"] = "completed"
     save_data(data)
+    add_log("COMPLETE_ORDER", f"주문ID={order_id} 완료")
     flash(f"{order_id} 주문이 완료 처리되었습니다.")
     return redirect(url_for("admin"))
 
@@ -313,8 +335,18 @@ def admin_soldout(menu_id):
     menu_obj["soldOut"] = not menu_obj["soldOut"]
     save_data(data)
     state = "품절" if menu_obj["soldOut"] else "품절 해제"
+    add_log("SOLDOUT_TOGGLE", f"메뉴ID={menu_id}, {state}")
     flash(f"{menu_obj['name']} {state} 처리되었습니다.")
     return redirect(url_for("admin"))
+
+# 관리자 로그 페이지
+@app.route("/admin/log")
+@login_required(role="admin")
+def admin_log_page():
+    logs = data["logs"]
+    # 시간 내림차순 정렬(가장 최근이 위로)
+    logs_sorted = sorted(logs, key=lambda x: x["time"], reverse=True)
+    return render_template("admin_log.html", logs=logs_sorted)
 
 
 # ---------------------------
@@ -332,7 +364,6 @@ def kitchen():
     item_counts = {}
     for o in paid_orders:
         for i in o["items"]:
-            # i["quantity"] - i["doneQuantity"] 만큼 남음
             left_qty = i["quantity"] - i.get("doneQuantity", 0)
             if left_qty > 0:
                 mid = i["menuId"]
@@ -372,10 +403,10 @@ def kitchen_done_item(order_id, menu_id):
         flash("해당 주문 내에 해당 메뉴가 없습니다.")
         return redirect(url_for("kitchen"))
 
-    # doneQuantity 증가 (1개씩)
     done_qty = item.get("doneQuantity", 0)
     if done_qty < item["quantity"]:
         item["doneQuantity"] = done_qty + 1
+        add_log("KITCHEN_DONE_ITEM", f"주문ID={order_id}, 메뉴ID={menu_id}, 조리1개 완료")
 
     # 모든 아이템이 quantity == doneQuantity이면, kitchenDone = True
     all_done = True
@@ -386,12 +417,10 @@ def kitchen_done_item(order_id, menu_id):
     order["kitchenDone"] = all_done
 
     save_data(data)
-    flash(f"주문 {order_id} / 메뉴ID {menu_id} 조리 1개 완료 처리. (done={item['doneQuantity']}/{item['quantity']})")
+    flash(f"주문 {order_id} / 메뉴ID {menu_id} 조리 1개 완료 (done={item['doneQuantity']}/{item['quantity']})")
     return redirect(url_for("kitchen"))
-
 
 # 메인 실행
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
-
