@@ -2,13 +2,13 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Adobe Is Free 주점</title>
+  <title>AIF 주점 시스템</title>
 </head>
 <body>
-  <h1>Adobe Is Free 주점</h1>
-  
-  <!-- 상단에 로그인/로그아웃 링크 영역 -->
-  <div>
+  <h1>AIF 주점 시스템</h1>
+
+  <!-- 상단에 로그인/로그아웃 상태 표시 -->
+  <div style="margin-bottom:10px;">
     {% if session.get("role") %}
       <span>로그인됨: {{ session["role"] }}</span>
       | <a href="{{ url_for('logout') }}">로그아웃</a>
@@ -17,9 +17,15 @@
     {% endif %}
   </div>
 
+  <!-- 뒤로가기 버튼 (브라우저 히스토리) -->
+  <div style="margin-bottom:10px;">
+    <button onclick="history.back()">← 뒤로가기</button>
+    <a href="{{ url_for('index') }}">[메인으로]</a>
+  </div>
+
   <hr />
 
-  <!-- Flash 메시지 표시 (에러, 안내 등) -->
+  <!-- Flash 메시지 표시 -->
   {% with messages = get_flashed_messages() %}
     {% if messages %}
       <ul style="color:red;">
