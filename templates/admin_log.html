@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block content %}
+<h2>관리자 로그 기록</h2>
+<table border="1" cellpadding="8" cellspacing="0">
+  <tr>
+    <th>시간(UnixTime)</th>
+    <th>Role</th>
+    <th>Action</th>
+    <th>Detail</th>
+  </tr>
+  {% for log in logs %}
+  <tr>
+    <td>{{ log.time }}</td>
+    <td>{{ log.role }}</td>
+    <td>{{ log.action }}</td>
+    <td>{{ log.detail }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}
