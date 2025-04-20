@@ -58,7 +58,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for it in o.items %}
+          {% for it in o["items"] %}
           <tr>
             <td>{{ it.menuName }}</td>
             <td>{{ it.quantity }}</td>
@@ -97,7 +97,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for it in o.items %}
+          {% for it in o["items"] %}
           <tr>
             <td>{{ it.menuName }}</td>
             <td>{{ it.quantity }}</td>
@@ -154,7 +154,7 @@
 {% endif %}
 
 <hr/>
-<!-- 4) 메뉴 품절 관리 (남은재고 표시) -->
+<!-- 4) 메뉴 품절 관리 -->
 <h4>메뉴 품절 관리</h4>
 <table class="table table-striped">
   <thead>
