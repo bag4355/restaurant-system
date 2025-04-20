@@ -21,7 +21,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for it in o.items %}
+          {% for it in o["items"] %}
           <tr>
             <td>{{ it.menuName }}</td>
             <td>{{ it.quantity }}</td>
@@ -60,9 +60,9 @@
       </tr>
     </thead>
     <tbody>
-    {% for menuName, cnt in kitchen_status.items() %}
+    {% for name, cnt in kitchen_status.items() %}
       <tr>
-        <td>{{ menuName }}</td>
+        <td>{{ name }}</td>
         <td>{{ cnt }}</td>
       </tr>
     {% endfor %}
