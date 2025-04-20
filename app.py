@@ -1,177 +1,280 @@
-import os
-from flask import Flask, render_template, request, redirect, url_for, session
-from flask_sqlalchemy import SQLAlchemy
-from functools import wraps
-from datetime import datetime
+import os, json, threading, time
+from flask import (
+    Flask, request, render_template, redirect,
+    url_for, flash, session
+)
+from dotenv import load_dotenv
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'change_this_secret')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///restaurant.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+load_dotenv()
+app = Flask(__name__, static_folder="static")
+app.secret_key = os.urandom(24)
 
-# --- Models -------------------------------------
+# 환경변수
+ADMIN_ID   = os.getenv("ADMIN_ID")
+ADMIN_PW   = os.getenv("ADMIN_PW")
+KITCHEN_ID = os.getenv("KITCHEN_ID")
+KITCHEN_PW = os.getenv("KITCHEN_PW")
 
-class User(db.Model):
-    id       = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(64), unique=True, nullable=False)
-    password = db.Column(db.String(128), nullable=False)
-    role     = db.Column(db.String(16), nullable=False)  # 'admin' or 'kitchen'
+DATA_FILE = os.path.join(os.path.dirname(__file__), 'orders.json')
 
-class Order(db.Model):
-    id           = db.Column(db.Integer, primary_key=True)
-    table_number = db.Column(db.String(16), nullable=False)
-    total_price  = db.Column(db.Integer, nullable=False)
-    status       = db.Column(db.String(16), nullable=False, default='pending')
-    created_at   = db.Column(db.DateTime, default=datetime.utcnow)
-    items        = db.relationship('OrderItem', backref='order', lazy=True)
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return {
+            "menuItems": [
+                {"id":1,"name":"메인안주A","price":12000,"category":"main","soldOut":False},
+                {"id":2,"name":"메인안주B","price":15000,"category":"main","soldOut":False},
+                {"id":3,"name":"소주","price":4000,"category":"soju","soldOut":False},
+                {"id":4,"name":"맥주(1L)","price":8000,"category":"beer","soldOut":False},
+                {"id":5,"name":"콜라","price":2000,"category":"drink","soldOut":False},
+                {"id":6,"name":"사이다","price":2000,"category":"drink","soldOut":False},
+                {"id":7,"name":"생수","price":1000,"category":"drink","soldOut":False},
+            ],
+            "orders": [],
+            "logs": []
+        }
+    with open(DATA_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
-class OrderItem(db.Model):
-    id        = db.Column(db.Integer, primary_key=True)
-    order_id  = db.Column(db.Integer, db.ForeignKey('order.id'), nullable=False)
-    menu_name = db.Column(db.String(64), nullable=False)
-    quantity  = db.Column(db.Integer, default=1)
-    status    = db.Column(db.String(16), nullable=False, default='pending')  
-               # 'pending', 'cooked', 'served'
+def save_data(d):
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump(d, f, ensure_ascii=False, indent=2)
 
-# --- 로그인 체크 ----------------------------------
+def add_log(action, detail):
+    d = load_data()
+    new_log = {
+        "time": int(time.time()),
+        "role": session.get("role", "unknown"),
+        "action": action,
+        "detail": detail
+    }
+    d["logs"].append(new_log)
+    save_data(d)
 
-def login_required(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        if not session.get('user_id'):
-            return redirect(url_for('login'))
-        return fn(*args, **kwargs)
+def calculate_total_price(items):
+    d = load_data()
+    total = 0
+    for oi in items:
+        m = next((x for x in d["menuItems"] if x["id"] == oi["menuId"]), None)
+        if m:
+            total += m["price"] * oi["quantity"]
+    return total
+
+def generate_order_id():
+    return f"order_{int(time.time() * 1000)}"
+
+def login_required(role=None):
+    def wrapper(fn):
+        def inner(*args, **kwargs):
+            if "role" not in session:
+                flash("로그인 후 이용 가능합니다.")
+                return redirect(url_for("login"))
+            # role check removed → any logged-in user can access
+            return fn(*args, **kwargs)
+        inner.__name__ = fn.__name__
+        return inner
     return wrapper
 
-# --- 라우팅 ---------------------------------------
+def time_checker():
+    while True:
+        time.sleep(60)
+        d = load_data()
+        changed = False
+        now = int(time.time())
+        for o in d["orders"]:
+            if o["status"] == "paid" and o.get("confirmedAt"):
+                diff = (now - o["confirmedAt"]) // 60
+                if diff >= 50 and not o.get("alertFifty"):
+                    o["alertFifty"] = True; changed = True
+                    print(f"[알림] 50분 경과: {o['id']}")
+                if diff >= 60 and not o.get("alertSixty"):
+                    o["alertSixty"] = True; changed = True
+                    print(f"[알림] 60분 경과: {o['id']}")
+        if changed:
+            save_data(d)
 
-@app.route('/')
+threading.Thread(target=time_checker, daemon=True).start()
+
+# ─── 라우트 ───────────────────────────────────
+
+@app.route("/")
 def index():
-    return redirect(url_for('login'))
+    return render_template("index.html")
 
-@app.route('/login', methods=['GET','POST'])
+@app.route("/login", methods=["GET", "POST"])
 def login():
-    error = None
-    if request.method == 'POST':
-        user = User.query.filter_by(
-            username=request.form['username'],
-            password=request.form['password']
-        ).first()
-        if user:
-            session['user_id'] = user.id
-            session['role']    = user.role
-            return redirect(url_for('admin'))
-        else:
-            error = '아이디 또는 비밀번호가 잘못되었습니다.'
-    return render_template('login.html', error=error)
+    if request.method == "POST":
+        ui, pw = request.form["userid"], request.form["userpw"]
+        if ui == ADMIN_ID and pw == ADMIN_PW:
+            session["role"] = "admin"; flash("관리자 로그인!")
+            return redirect(url_for("admin"))
+        if ui == KITCHEN_ID and pw == KITCHEN_PW:
+            session["role"] = "kitchen"; flash("주방 로그인!")
+            return redirect(url_for("kitchen"))
+        flash("로그인 실패"); return redirect(url_for("login"))
+    return render_template("login.html")
 
-@app.route('/logout')
+@app.route("/logout")
 def logout():
-    session.clear()
-    return redirect(url_for('login'))
+    session.pop("role", None)
+    flash("로그아웃 되었습니다.")
+    return redirect(url_for("index"))
 
-@app.route('/order', methods=['GET','POST'])
-@login_required
+# ── 주문자 페이지 ────────────────────────────────
+
+@app.route("/order", methods=["GET", "POST"])
 def order():
-    # (간략) 고객 주문 페이지
-    if request.method == 'POST':
-        table = request.form.get('table')
-        items = []
-        total = 0
-        # form으로 받은 메뉴명·가격 리스트 순회
-        for name, price_str in zip(request.form.getlist('menu_name'),
-                                    request.form.getlist('price')):
-            price = int(price_str)
-            qty   = int(request.form.get(f'quantity_{name}', 1))
+    if request.method == "POST":
+        d = load_data()
+
+        table = request.form.get("tableNumber", "")
+        is_first = (request.form.get("isFirstOrder") == "true")
+        people = int(request.form.get("peopleCount", "0") or 0)
+        notice = (request.form.get("noticeChecked") == "on")
+
+        ordered_items = []
+        for m in d["menuItems"]:
+            qty = int(request.form.get(f"qty_{m['id']}", "0") or 0)
             if qty > 0:
-                total += price * qty
-                items.append({'menu_name': name, 'quantity': qty})
-        if items:
-            o = Order(table_number=table, total_price=total)
-            db.session.add(o); db.session.flush()
-            for it in items:
-                db.session.add(OrderItem(
-                    order_id=o.id,
-                    menu_name=it['menu_name'],
-                    quantity=it['quantity']
-                ))
-            db.session.commit()
-            return render_template('order_success.html', order=o)
+                ordered_items.append({
+                    "menuId": m["id"],
+                    "quantity": qty,
+                    "doneQuantity": 0,
+                    "deliveredQuantity": 0
+                })
 
-    menus = [
-        {'name':'아메리카노','price':4000},
-        {'name':'카페라떼','price':4500},
-        # … 필요에 따라 추가
-    ]
-    return render_template('order_form.html', menus=menus)
+        # (생략: 유효성 검증 로직 동일)
 
-@app.route('/admin')
-@login_required
+        total = calculate_total_price(ordered_items)
+        oid   = generate_order_id()
+        now   = int(time.time())
+        newo = {
+            "id": oid,
+            "tableNumber": table,
+            "items": ordered_items,
+            "totalPrice": total,
+            "status": "pending",
+            "createdAt": now,
+            "confirmedAt": None,
+            "alertFifty": False,
+            "alertSixty": False,
+            "kitchenDone": False
+        }
+        d["orders"].append(newo)
+        save_data(d)
+        return render_template("order_result.html",
+                               total_price=total, order_id=oid)
+
+    return render_template("order_form.html",
+                           menu_items=load_data()["menuItems"])
+
+# ── 관리자 페이지 ────────────────────────────────
+
+@app.route("/admin")
+@login_required()
 def admin():
-    pending    = Order.query.filter_by(status='pending').all()
-    confirmed  = Order.query.filter_by(status='confirmed').all()
-    preparing  = Order.query.filter_by(status='preparing').all()
-    served     = Order.query.filter_by(status='served').all()
-    return render_template('admin.html',
-        pending_orders= pending,
-        confirmed_orders=confirmed,
-        preparing_orders=preparing,
-        served_orders=   served
+    d = load_data()
+    return render_template("admin.html",
+        pending_orders   = [o for o in d["orders"] if o["status"] == "pending"],
+        paid_orders      = [o for o in d["orders"] if o["status"] == "paid"],
+        completed_orders = [o for o in d["orders"] if o["status"] == "completed"],
+        menu_items       = d["menuItems"]
     )
 
-@app.route('/admin_confirm/<int:order_id>', methods=['POST'])
-@login_required
+@app.route("/admin/confirm/<order_id>", methods=["POST"])
+@login_required()
 def admin_confirm(order_id):
-    o = Order.query.get_or_404(order_id)
-    o.status = 'confirmed'
-    db.session.commit()
-    return redirect(url_for('admin'))
+    d = load_data()
+    o = next((x for x in d["orders"] if x["id"] == order_id), None)
+    if o and o["status"] == "pending":
+        o["status"] = "paid"
+        o["confirmedAt"] = int(time.time())
+        save_data(d)
+        add_log("CONFIRM_ORDER", order_id)
+    return redirect(url_for("admin"))
 
-@app.route('/admin_ready/<int:order_id>', methods=['POST'])
-@login_required
-def admin_ready(order_id):
-    o = Order.query.get_or_404(order_id)
-    o.status = 'preparing'
-    db.session.commit()
-    return redirect(url_for('admin'))
+@app.route("/admin/complete/<order_id>", methods=["POST"])
+@login_required()
+def admin_complete(order_id):
+    d = load_data()
+    o = next((x for x in d["orders"] if x["id"] == order_id), None)
+    if o and o["status"] == "paid":
+        o["status"] = "completed"
+        save_data(d)
+        add_log("COMPLETE_ORDER", order_id)
+    return redirect(url_for("admin"))
 
-@app.route('/admin_serve_item/<int:item_id>')
-@login_required
-def admin_serve_item(item_id):
-    it = OrderItem.query.get_or_404(item_id)
-    it.status = 'served'
-    # 주문 전체 상태 업데이트
-    parent = it.order
-    if all(x.status=='served' for x in parent.items):
-        parent.status = 'served'
-    db.session.commit()
-    return redirect(url_for('admin'))
+@app.route("/admin/soldout/<int:menu_id>", methods=["POST"])
+@login_required()
+def admin_soldout(menu_id):
+    d = load_data()
+    m = next((x for x in d["menuItems"] if x["id"] == menu_id), None)
+    if m:
+        m["soldOut"] = not m["soldOut"]
+        save_data(d)
+        add_log("SOLDOUT_TOGGLE", str(menu_id))
+    return redirect(url_for("admin"))
 
-@app.route('/admin_log')
-@login_required
-def admin_log():
-    # 로그 화면 구현 영역
-    return render_template('admin_log.html')
+@app.route("/admin/deliver/<order_id>/<int:menu_id>", methods=["POST"])
+@login_required()
+def admin_deliver_item(order_id, menu_id):
+    d = load_data()
+    o = next((x for x in d["orders"] if x["id"] == order_id), None)
+    if o and o["status"] in ("paid", "completed"):
+        it = next((i for i in o["items"] if i["menuId"] == menu_id), None)
+        if it:
+            delivered = it.get("deliveredQuantity", 0)
+            if delivered < it.get("doneQuantity", 0):
+                it["deliveredQuantity"] = delivered + 1
+                add_log("ADMIN_DELIVER_ITEM", f"{order_id}/{menu_id}")
+            # 모두 전달됐으면 주문 완료
+            if all(i.get("deliveredQuantity", 0) >= i["quantity"] for i in o["items"]):
+                o["status"] = "completed"
+        save_data(d)
+    return redirect(url_for("admin"))
 
-@app.route('/kitchen')
-@login_required
+@app.route("/admin/log")
+@login_required()
+def admin_log_page():
+    logs = sorted(load_data()["logs"], key=lambda x: x["time"], reverse=True)
+    return render_template("admin_log.html", logs=logs)
+
+# ── 주방 페이지 ────────────────────────────────
+
+@app.route("/kitchen")
+@login_required()
 def kitchen():
-    # confirmed 또는 preparing 상태의 주문만 조회
-    orders = Order.query.filter(Order.status.in_(['confirmed','preparing'])).all()
-    return render_template('kitchen.html', orders=orders)
+    d = load_data()
+    paid = sorted(
+        [o for o in d["orders"] if o["status"] == "paid"],
+        key=lambda x: x.get("confirmedAt", 0)
+    )
+    # 미조리 총합
+    cnt, menu_map = {}, {m["id"]: m["name"] for m in d["menuItems"]}
+    for o in paid:
+        for i in o["items"]:
+            left = i["quantity"] - i.get("doneQuantity", 0)
+            if left > 0:
+                cnt[i["menuId"]] = cnt.get(i["menuId"], 0) + left
+    ks = [{"menuId":mid, "menuName":menu_map[mid], "count":c} for mid,c in cnt.items()]
+    return render_template("kitchen.html",
+                           paid_orders=paid,
+                           kitchen_status=ks)
 
-@app.route('/kitchen_done/<int:item_id>')
-@login_required
-def kitchen_done(item_id):
-    it = OrderItem.query.get_or_404(item_id)
-    it.status = 'cooked'
-    parent = it.order
-    if parent.status == 'confirmed':
-        parent.status = 'preparing'
-    db.session.commit()
-    return redirect(url_for('kitchen'))
+@app.route("/kitchen/done-item/<order_id>/<int:menu_id>", methods=["POST"])
+@login_required()
+def kitchen_done_item(order_id, menu_id):
+    d = load_data()
+    o = next((x for x in d["orders"] if x["id"] == order_id), None)
+    if o and o["status"] == "paid":
+        it = next((i for i in o["items"] if i["menuId"] == menu_id), None)
+        if it and it.get("doneQuantity", 0) < it["quantity"]:
+            it["doneQuantity"] = it.get("doneQuantity", 0) + 1
+            add_log("KITCHEN_DONE_ITEM", f"{order_id}/{menu_id}")
+            # 모두 조리됐으면 flag
+            if all(i.get("doneQuantity", 0) >= i["quantity"] for i in o["items"]):
+                o["kitchenDone"] = True
+        save_data(d)
+    return redirect(url_for("kitchen"))
 
-if __name__ == '__main__':
-    db.create_all()
-    app.run(debug=True, host='0.0.0.0')
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=True)
