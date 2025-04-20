@@ -1,26 +1,19 @@
 {% extends "layout.html" %}
 {% block content %}
-<div class="container py-5">
-  <div class="row justify-content-center">
-    <div class="col-md-8">
-      <div class="card shadow">
-        <div class="card-header bg-dark text-white text-center">
-          <h2>안내 페이지</h2>
-        </div>
-        <div class="card-body">
-          <p class="card-text">주문을 원하실 경우, [주문자용: 주문하기]를 선택해 주세요.</p>
-          <ul class="list-group list-group-flush">
-            <li class="list-group-item">
-              <a href="{{ url_for('order') }}" class="btn btn-primary btn-block">주문자용: 주문하기</a>
-            </li>
-            <li class="list-group-item">
-              <a href="{{ url_for('admin') }}" class="btn btn-warning btn-block">관리자용: 주문 관리</a>
-            </li>
-            <li class="list-group-item">
-              <a href="{{ url_for('kitchen') }}" class="btn btn-success btn-block">주방용: 주문 확인</a>
-            </li>
-          </ul>
-        </div>
+<div class="row justify-content-center">
+  <div class="col-md-8">
+    <div class="card shadow">
+      <div class="card-body text-center">
+        <h2 class="card-title mb-4">안내 페이지</h2>
+        <a href="{{ url_for('order') }}" class="btn btn-primary me-2">
+          <i class="fas fa-utensils"></i> [주문하기]
+        </a>
+        <a href="{{ url_for('admin') }}" class="btn btn-warning me-2">
+          <i class="fas fa-user-shield"></i> 관리자 페이지
+        </a>
+        <a href="{{ url_for('kitchen') }}" class="btn btn-success">
+          <i class="fas fa-hat-chef"></i> 주방 페이지
+        </a>
       </div>
     </div>
   </div>
