@@ -809,4 +809,5 @@ def kitchen_done_item(order_id, menu_name):
 # ─────────────────────────────────────────────────────────
 if __name__=="__main__":
     init_db()  # 스크립트 실행 시 한번 더
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    port = int(os.getenv("PORT","5000"))
+    app.run(host="0.0.0.0", port=port, debug=True)
