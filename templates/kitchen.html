@@ -2,46 +2,73 @@
 {% block content %}
 <h2>주방용 페이지</h2>
 
-<h3>1) 현재 확정된(결제완료) 주문 목록</h3>
-{% for o in paid_orders %}
+<h4>1) 현재 결제확정된 주문 목록</h4>
+{% if paid_orders %}
+  {% for o in paid_orders %}
   <div class="card mb-3">
     <div class="card-header">
-      주문 {{ o.id }} / 테이블: {{ o.tableNumber }}
+      <strong>주문 {{ o.id }}</strong> (테이블: {{ o.tableNumber }})
     </div>
     <div class="card-body">
-      <ul>
-        {% for i in o['items'] %}
-        <li>
-          메뉴ID {{ i.menuId }} /
-          주문수량 {{ i.quantity }} /
-          이미 조리완료 {{ i.doneQuantity }} /
-          남은수량 {{ i.quantity - i.doneQuantity }}
-          {% if i.doneQuantity < i.quantity %}
-            <form action="{{ url_for('kitchen_done_item', order_id=o.id, menu_id=i.menuId) }}"
-                  method="POST" style="display:inline;">
-              <button class="btn btn-sm btn-success">조리 1개 완료</button>
-            </form>
-          {% else %}
-            <span class="badge bg-success">완료</span>
-          {% endif %}
-        </li>
-        {% endfor %}
-      </ul>
+      <table class="table table-sm table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th>메뉴</th>
+            <th>주문수량</th>
+            <th>조리완료</th>
+            <th>남은수량</th>
+            <th>조리 버튼</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for it in o.items %}
+          <tr>
+            <td>{{ it.menuName }}</td>
+            <td>{{ it.quantity }}</td>
+            <td>{{ it.doneQuantity }}</td>
+            <td>{{ it.quantity - it.doneQuantity }}</td>
+            <td>
+              {% if it.doneQuantity < it.quantity %}
+                <form action="{{ url_for('kitchen_done_item', order_id=o.id, menu_name=it.menuName) }}"
+                      method="POST" style="display:inline;">
+                  <button class="btn btn-sm btn-success">조리 1개 완료</button>
+                </form>
+              {% else %}
+                <span class="badge bg-success">완료</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
-{% endfor %}
-{% if paid_orders|length == 0 %}
-  <p class="text-muted">확정된 주문이 없습니다.</p>
+  {% endfor %}
+{% else %}
+  <p class="text-muted">결제완료 상태의 주문이 없습니다.</p>
 {% endif %}
 
 <hr/>
-<h3>2) 현재 만들어야 할 전체 메뉴 수량(미조리 부분)</h3>
-<ul>
-  {% for ks in kitchen_status %}
-  <li>{{ ks.menuName }}: {{ ks.count }}개</li>
-  {% endfor %}
-  {% if kitchen_status|length == 0 %}
-    <li class="text-muted">현재 만들 메뉴가 없습니다.</li>
-  {% endif %}
-</ul>
+
+<h4>2) 만들어야 할 전체 메뉴 수량(미조리 합계)</h4>
+{% if kitchen_status %}
+  <table class="table table-bordered w-50">
+    <thead class="table-light">
+      <tr>
+        <th>메뉴</th>
+        <th>남은 조리수량</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for menuName, cnt in kitchen_status.items() %}
+      <tr>
+        <td>{{ menuName }}</td>
+        <td>{{ cnt }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <p class="text-muted">현재 만들 메뉴가 없습니다.</p>
+{% endif %}
 {% endblock %}
