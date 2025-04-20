@@ -1,6 +1,12 @@
 {% extends "layout.html" %}
 {% block content %}
 <h2 class="mb-3"><i class="fas fa-receipt"></i> 주문하기</h2>
+
+<!-- 규칙 위반 시 에러 메시지 표시 -->
+{% for msg in get_flashed_messages(category_filter=["error"]) %}
+  <p class="text-danger">{{ msg }}</p>
+{% endfor %}
+
 <form method="POST">
   <div class="mb-3">
     <label class="form-label">테이블 번호</label>
@@ -20,7 +26,6 @@
     </select>
   </div>
 
-  <!-- 주의사항 카드 -->
   <div class="alert alert-info">
     <h6>주의사항</h6>
     <ul class="mb-0">
@@ -31,7 +36,7 @@
     <div class="form-check mt-2">
       <input class="form-check-input" type="checkbox" id="noticeChecked" name="noticeChecked">
       <label class="form-check-label" for="noticeChecked">
-        주의사항 확인했습니다.
+        주의사항을 확인했습니다.
       </label>
     </div>
     <div class="mt-2">
@@ -42,7 +47,7 @@
   <h4 class="mt-4">메뉴 선택</h4>
   <table class="table table-bordered align-middle">
     <thead class="table-light">
-      <tr><th>메뉴</th><th>가격</th><th>수량</th><th>상태</th></tr>
+      <tr><th>메뉴</th><th>가격</th><th>수량</th><th>품절?</th><th>재고</th></tr>
     </thead>
     <tbody>
       {% for m in menu_items %}
@@ -57,8 +62,11 @@
           {% endif %}
         </td>
         <td>
-          {% if m.soldOut %}<i class="fas fa-ban text-danger"></i>{% endif %}
+          {% if m.soldOut %}
+            <i class="fas fa-ban text-danger"></i>
+          {% endif %}
         </td>
+        <td>{{ m.stock }}</td>
       </tr>
       {% endfor %}
     </tbody>
