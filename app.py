@@ -18,7 +18,7 @@ KITCHEN_PW = os.getenv("KITCHEN_PW")
 DATA_FILE = os.path.join(os.path.dirname(__file__), 'orders.json')
 
 def load_data():
-    """JSON 파일 로드 (없으면 생성)"""
+    """JSON 파일 로드 (없으면 기본 구조 생성)"""
     if not os.path.exists(DATA_FILE):
         return {
             "menuItems": [
@@ -60,14 +60,12 @@ def load_data():
             ],
             "orders": [],
             "logs": [],
-            # 주문번호는 0에서 시작 → 최초 주문 시 1 할당
             "lastOrderIdUsed": 0
         }
     with open(DATA_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 def save_data(d):
-    """JSON 파일 저장"""
     with open(DATA_FILE, 'w', encoding='utf-8') as f:
         json.dump(d, f, ensure_ascii=False, indent=2)
 
@@ -84,20 +82,20 @@ def add_log(action, detail):
 
 def generate_order_id():
     """
-    무조건 가주문이 들어온 순서대로 1씩 증가
-    결제 확정 여부와 무관
+    lastOrderIdUsed를 1 증가시키고, 그 값을 새 주문번호로 반환.
+    실제 JSON에 저장하므로 재시작해도 이어집니다.
     """
     d = load_data()
     d["lastOrderIdUsed"] += 1
     new_id = d["lastOrderIdUsed"]
-    save_data(d)  # 여기서 저장해야 다음 주문 시 값이 이어짐
+    save_data(d)
     return new_id
 
 def calculate_total_price(items):
     d = load_data()
     total = 0
     for it in items:
-        # it["menuName"]로 해당 menuItems 찾아 가격 계산
+        # it["menuName"] 기준으로 menuItems 찾아 가격 계산
         m = next((x for x in d["menuItems"] if x["name"]==it["menuName"]), None)
         if m:
             total += m["price"] * it["quantity"]
@@ -114,34 +112,34 @@ def login_required():
         return inner
     return wrapper
 
-# 1분 마다 50/60분 초과 알림 체크
 def time_checker():
+    # 1분마다 50/60분 경과 알림
     while True:
         time.sleep(60)
         d = load_data()
         changed = False
         now = int(time.time())
         for o in d["orders"]:
-            if o["status"]=="paid" and o.get("confirmedAt"):
+            if o["status"] == "paid" and o.get("confirmedAt"):
                 diff = (now - o["confirmedAt"]) // 60
                 if diff >= 50 and not o.get("alertFifty"):
-                    o["alertFifty"]=True
-                    changed=True
+                    o["alertFifty"] = True
+                    changed = True
                     print(f"[알림] 50분 경과 - 주문ID={o['id']}")
                 if diff >= 60 and not o.get("alertSixty"):
-                    o["alertSixty"]=True
-                    changed=True
+                    o["alertSixty"] = True
+                    changed = True
                     print(f"[알림] 60분 경과 - 주문ID={o['id']}")
         if changed:
             save_data(d)
 
 threading.Thread(target=time_checker, daemon=True).start()
 
-# 매출 계산 (service=False 인 주문만)
+# 매출 계산 (service=False인 주문만)
 def get_current_sales(d):
     total = 0
     for o in d["orders"]:
-        if not o.get("service") and o["status"] in ("paid","completed"):
+        if not o.get("service") and o["status"] in ["paid","completed"]:
             total += o["totalPrice"]
     return total
 
@@ -201,7 +199,7 @@ def order():
                     "deliveredQuantity": 0
                 })
 
-        # 규칙 체크
+        # (규칙 체크) (생략)
         if not table_number:
             flash("테이블 번호를 선택해주세요.", "error")
             return redirect(url_for("order"))
@@ -219,14 +217,13 @@ def order():
             main_qty = sum(mi["quantity"] for mi in main_items)
             needed = people_count//3
             if needed>0 and main_qty<needed:
-                flash(f"인원수 대비 메인안주가 부족합니다 (필요:{needed}개).","error")
+                flash(f"인원수 대비 메인안주가 부족합니다 (필요: {needed}개).","error")
                 return redirect(url_for("order"))
             # 맥주 최대 1병
             beer_items = [it for it in ordered_items if any(
                 mm["name"]==it["menuName"] and mm["category"]=="beer" for mm in d["menuItems"]
             )]
-            beer_qty = sum(bi["quantity"] for bi in beer_items)
-            if beer_qty>1:
+            if sum(b["quantity"] for b in beer_items)>1:
                 flash("최초 주문 시 맥주는 1병(1L)까지만 가능합니다.", "error")
                 return redirect(url_for("order"))
         else:
@@ -245,12 +242,12 @@ def order():
                 flash(f"품절된 메뉴[{mm['name']}]는 주문 불가합니다.","error")
                 return redirect(url_for("order"))
 
-        # 주문번호 생성 (가주문 시점)
-        new_id = generate_order_id()
+        # 주문번호 생성
+        new_order_id = generate_order_id()  # 순차 증가
         total_price = calculate_total_price(ordered_items)
         now = int(time.time())
         new_order = {
-            "id": new_id,  # 여기서 ID를 1씩 증가
+            "id": new_order_id,
             "tableNumber": table_number,
             "peopleCount": people_count,
             "items": ordered_items,
@@ -265,9 +262,10 @@ def order():
         }
         d["orders"].append(new_order)
         save_data(d)
-        flash(f"주문이 접수되었습니다 (주문번호 {new_id}).")
+        flash(f"주문이 접수되었습니다 (주문번호 {new_order_id}).")
         return render_template("order_result.html",
-                               total_price=total_price, order_id=new_id)
+                               total_price=total_price,
+                               order_id=new_order_id)
 
     return render_template("order_form.html", menu_items=d["menuItems"])
 
@@ -297,17 +295,17 @@ def admin_confirm(order_id):
     d = load_data()
     o = next((x for x in d["orders"] if x["id"]==order_id), None)
     if o and o["status"]=="pending":
-        # 결제 확정
         o["status"] = "paid"
         o["confirmedAt"] = int(time.time())
-        # 재고 차감 + 음료류 자동 조리완료
+        # 재고 차감, 음료 자동조리
         for it in o["items"]:
             mm = next((m for m in d["menuItems"] if m["name"]==it["menuName"]), None)
             if mm:
                 mm["stock"] -= it["quantity"]
-                # 소주/맥주/콜라/사이다/생수 == soju/beer/drink
+                # 소주/맥주/음료류 → 자동 조리완료
                 if mm["category"] in ["soju","beer","drink"]:
                     it["doneQuantity"] = it["quantity"]
+
         save_data(d)
         add_log("CONFIRM_ORDER", f"주문ID={order_id}")
         flash(f"주문 {order_id} 입금확인 완료!")
@@ -351,13 +349,11 @@ def admin_soldout(menu_id):
     m = next((x for x in d["menuItems"] if x["id"]==menu_id), None)
     if m:
         if not m["soldOut"]:
-            # false->true
             m["soldOut"] = True
             m["stockBeforeSoldOut"] = m["stock"]
         else:
-            # true->false
             m["soldOut"] = False
-            if m.get("stockBeforeSoldOut") is not None:
+            if m["stockBeforeSoldOut"] is not None:
                 m["stock"] = m["stockBeforeSoldOut"]
                 m["stockBeforeSoldOut"] = None
         save_data(d)
@@ -372,7 +368,7 @@ def admin_log_page():
     logs = sorted(d["logs"], key=lambda x: x["time"], reverse=True)
     return render_template("admin_log.html", logs=logs)
 
-# 0원 서비스 라우트
+# 0원 서비스
 @app.route("/admin/service", methods=["POST"])
 @login_required()
 def admin_service():
@@ -389,8 +385,7 @@ def admin_service():
         flash("해당 메뉴는 품절 처리된 상태입니다.","error")
         return redirect(url_for("admin"))
 
-    # 새 주문번호(=가주문) 생성
-    new_id = generate_order_id()
+    new_id = generate_order_id()  # 서비스도 새 주문번호
     now = int(time.time())
     item = {
         "menuName": menu_name,
@@ -413,10 +408,10 @@ def admin_service():
         "service": True
     }
     d["orders"].append(new_order)
-
-    # 재고 차감 + 음료류 자동 조리완료
+    # 재고 차감
     if mm:
         mm["stock"] -= qty
+        # 소주/맥주/음료류 자동 조리
         if mm["category"] in ["soju","beer","drink"]:
             item["doneQuantity"] = qty
 
@@ -437,13 +432,13 @@ def kitchen():
         [o for o in d["orders"] if o["status"]=="paid"],
         key=lambda x: x.get("confirmedAt", 0)
     )
-    # 미조리: quantity - doneQuantity
-    item_count={}
+    # 미조리 합계
+    item_count = {}
     for o in paid_orders:
         for it in o["items"]:
             left = it["quantity"] - it["doneQuantity"]
             if left>0:
-                item_count[it["menuName"]] = item_count.get(it["menuName"], 0)+left
+                item_count[it["menuName"]] = item_count.get(it["menuName"],0)+left
 
     return render_template("kitchen.html",
                            paid_orders=paid_orders,
@@ -459,9 +454,9 @@ def kitchen_done_item(order_id, menu_name):
         if it and it["doneQuantity"]<it["quantity"]:
             it["doneQuantity"] += 1
             add_log("KITCHEN_DONE_ITEM", f"{order_id}/{menu_name}")
-            # 모두 조리완료 시
+            # 모두 조리완료?
             if all(i["doneQuantity"]>=i["quantity"] for i in o["items"]):
-                o["kitchenDone"]=True
+                o["kitchenDone"] = True
         save_data(d)
     return redirect(url_for("kitchen"))
 
