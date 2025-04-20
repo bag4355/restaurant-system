@@ -58,7 +58,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for it in o["items"] %}
+          {% for it in o.items %}
           <tr>
             <td>{{ it.menuName }}</td>
             <td>{{ it.quantity }}</td>
@@ -97,7 +97,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for it in o["items"] %}
+          {% for it in o.items %}
           <tr>
             <td>{{ it.menuName }}</td>
             <td>{{ it.quantity }}</td>
@@ -186,13 +186,13 @@
 </table>
 
 <hr/>
-<!-- 5) 제한사항 설정 (mainAnjuRatio, beerLimit, timeWarning1/2 등) -->
+<!-- 5) 제한사항 설정 -->
 <h4>제한사항 설정</h4>
 <form method="POST" action="{{ url_for('admin_update_settings') }}" class="row g-3 mb-5">
   <div class="col-auto">
     <label>메인안주 필수 여부:</label><br>
     <input type="checkbox" name="mainRequiredEnabled" value="1"
-      {% if settings.main_required_enabled == 1 %} checked {% endif %}>
+      {% if settings.main_required_enabled %} checked {% endif %}>
   </div>
   <div class="col-auto">
     <label>3명당 메인안주 수:</label>
@@ -202,7 +202,7 @@
   <div class="col-auto">
     <label>맥주 제한 사용:</label><br>
     <input type="checkbox" name="beerLimitEnabled" value="1"
-      {% if settings.beer_limit_enabled == 1 %} checked {% endif %}>
+      {% if settings.beer_limit_enabled %} checked {% endif %}>
     (최대 <input type="number" name="beerLimitCount" value="{{ settings.beer_limit_count }}" style="width:60px;"> 병)
   </div>
   <div class="col-auto">
@@ -219,5 +219,4 @@
     <button class="btn btn-primary btn-sm">저장</button>
   </div>
 </form>
-
 {% endblock %}
