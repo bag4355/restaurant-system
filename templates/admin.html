@@ -1,9 +1,8 @@
 {% extends "layout.html" %}
 {% block content %}
-<h2 class="mb-3"><i class="fas fa-user-shield"></i> 관리자 페이지</h2>
+<h2>관리자 페이지</h2>
 
-<!-- 1) 입금 확인 -->
-<h4>✅ 입금 확인 필요</h4>
+<h3>1) 입금 확인이 필요한 주문</h3>
 <div class="row g-3">
   {% for o in pending_orders %}
   <div class="col-md-4">
@@ -11,88 +10,82 @@
       <div class="card-body">
         <h5 class="card-title">주문 {{ o.id }}</h5>
         <p class="card-text">
-          테이블: {{ o.tableNumber }}<br>
+          테이블: {{ o.tableNumber }}<br/>
           총액: {{ o.totalPrice }}원
         </p>
-        <button
-          class="btn btn-success w-100"
-          hx-post="{{ url_for('admin_confirm',order_id=o.id) }}"
-          hx-swap="outerHTML"
-          hx-target=".card"
-        >
-          <i class="fas fa-check"></i> 확정
-        </button>
+        <form action="{{ url_for('admin_confirm', order_id=o.id) }}"
+              method="POST">
+          <button class="btn btn-success w-100">입금확인</button>
+        </form>
       </div>
     </div>
   </div>
   {% endfor %}
-  {% if not pending_orders %}
+  {% if pending_orders|length == 0 %}
     <p class="text-muted">대기중인 주문이 없습니다.</p>
   {% endif %}
 </div>
 
-<!-- 2) 조리 중 -->
-<h4 class="mt-4">👩‍🍳 조리 중</h4>
-<ul class="list-group">
-  {% for o in paid_orders %}
-  <li class="list-group-item d-flex justify-content-between align-items-center">
-    <div>
-      <strong>{{ o.id }}</strong> / 테이블 {{ o.tableNumber }}
-      {% if o.kitchenDone %}
-        <span class="badge bg-success">완료</span>
-      {% else %}
-        <span class="badge bg-warning text-dark">진행중</span>
-      {% endif %}
+<hr/>
+<h3>2) 조리 중인 주문</h3>
+{% for o in paid_orders %}
+  <div class="card mb-3">
+    <div class="card-header">
+      주문 {{ o.id }} / 테이블: {{ o.tableNumber }}
     </div>
-    <form method="POST" action="{{ url_for('admin_complete',order_id=o.id) }}">
-      <button class="btn btn-outline-primary btn-sm">
-        <i class="fas fa-clipboard-check"></i> 최종 완료
-      </button>
-    </form>
-  </li>
-  {% endfor %}
-  {% if not paid_orders %}
-    <li class="list-group-item text-muted">확정된 주문이 없습니다.</li>
-  {% endif %}
-</ul>
+    <div class="card-body">
+      <ul>
+        {% for i in o['items'] %}
+        <li>
+          메뉴ID {{ i.menuId }} /
+          주문수량 {{ i.quantity }} /
+          조리완료 {{ i.doneQuantity }} /
+          전달됨 {{ i.deliveredQuantity|default(0) }}
+          {% if i.doneQuantity > (i.deliveredQuantity|default(0)) %}
+            <form action="{{ url_for('admin_deliver_item', order_id=o.id, menu_id=i.menuId) }}"
+                  method="POST" style="display:inline;">
+              <button class="btn btn-sm btn-primary">전달</button>
+            </form>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+{% endfor %}
+{% if paid_orders|length == 0 %}
+  <p class="text-muted">확정된 주문이 없습니다.</p>
+{% endif %}
 
-<!-- 3) 과거 주문 -->
-<h4 class="mt-4">📜 완료된 주문</h4>
+<hr/>
+<h3>3) 조리 완료된 주문(과거 주문)</h3>
 <ul class="list-group">
   {% for o in completed_orders %}
   <li class="list-group-item">
-    {{ o.id }} / 테이블 {{ o.tableNumber }} / {{ o.totalPrice }}원 (완료됨)
+    주문 {{ o.id }} / 테이블 {{ o.tableNumber }} / {{ o.totalPrice }}원 (완료됨)
   </li>
   {% endfor %}
-  {% if not completed_orders %}
+  {% if completed_orders|length == 0 %}
     <li class="list-group-item text-muted">완료된 주문이 없습니다.</li>
   {% endif %}
 </ul>
 
-<hr class="my-4">
-
-<!-- 품절 토글 -->
-<h4>🍽️ 메뉴 품절 관리</h4>
+<hr/>
+<h3>4) 메뉴 품절 처리</h3>
 <table class="table table-striped">
   <thead><tr>
-    <th>메뉴</th><th>가격</th><th>상태</th><th>동작</th>
+    <th>메뉴명</th><th>가격</th><th>상태</th><th>동작</th>
   </tr></thead>
   <tbody>
     {% for m in menu_items %}
     <tr>
       <td>{{ m.name }}</td>
       <td>{{ m.price }}원</td>
+      <td>{{ "품절" if m.soldOut else "재고있음" }}</td>
       <td>
-        {% if m.soldOut %}
-          <span class="text-danger">품절</span>
-        {% else %}
-          <span class="text-success">재고 있음</span>
-        {% endif %}
-      </td>
-      <td>
-        <form method="POST" action="{{ url_for('admin_soldout',menu_id=m.id) }}">
-          <button class="btn btn-outline-{{ 'danger' if not m.soldOut else 'success' }} btn-sm">
-            {{ '품절 처리' if not m.soldOut else '해제' }}
+        <form action="{{ url_for('admin_soldout', menu_id=m.id) }}" method="POST">
+          <button class="btn btn-sm btn-outline-{{ 'success' if m.soldOut else 'danger' }}">
+            {{ "해제" if m.soldOut else "품절처리" }}
           </button>
         </form>
       </td>
