@@ -780,11 +780,38 @@ def kitchen_done_item(order_id, menu_name):
     return redirect(url_for("kitchen"))
 
 # ─────────────────────────────────────────────────────────
-# 앱 실행
-# (Flask 3.1 → before_first_request 대신, 여기서 init_db/start_time_checker)
+# **신규**: DB 연결 상태 확인용 라우트
 # ─────────────────────────────────────────────────────────
-if __name__=="__main__":
-    init_db()             # DB 테이블 생성 & 기본 데이터
-    start_time_checker()  # 1분마다 50분/60분 알림
-    port = int(os.getenv("PORT","5000"))
-    app.run(host="0.0.0.0", port=port, debug=True)
+@app.route("/db-test")
+def db_test():
+    # 1) TCP 레벨(MySQL protocol) 직접 테스트
+    try:
+        conn = pymysql.connect(
+            host=DB_HOST,
+            port=int(DB_PORT),
+            user=DB_USER,
+            password=DB_PASS,
+            db=DB_NAME,
+            connect_timeout=5
+        )
+        conn.close()
+        return "<h3 style='color:green;'>✔️ pymysql 연결 성공</h3>"
+    except Exception as e:
+        return f"<h3 style='color:red;'>❌ pymysql 연결 실패: {e}</h3>"
+
+    # 2) (선택) SQLAlchemy 엔진 레벨 테스트
+    # try:
+    #     raw = engine.raw_connection()
+    #     raw.close()
+    #     return "<p style='color:green;'>✔️ SQLAlchemy 연결 성공</p>"
+    # except Exception as e:
+    #     return f"<p style='color:red;'>❌ SQLAlchemy 연결 실패: {e}</p>"
+
+# ─────────────────────────────────────────────────────────
+# 앱 실행: init_db/start_time_checker 직접 호출
+# ─────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    # 기존과 동일하게 DB 초기화 + 타이머 시작
+    init_db()
+    start_time_checker()
+    app.run(host="0.0.0.0", port=5000, debug=True)
