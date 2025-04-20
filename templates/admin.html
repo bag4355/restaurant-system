@@ -184,4 +184,40 @@
     {% endfor %}
   </tbody>
 </table>
+
+<hr/>
+<!-- 5) 제한사항 설정 (mainAnjuRatio, beerLimit, timeWarning1/2 등) -->
+<h4>제한사항 설정</h4>
+<form method="POST" action="{{ url_for('admin_update_settings') }}" class="row g-3 mb-5">
+  <div class="col-auto">
+    <label>메인안주 필수 여부:</label><br>
+    <input type="checkbox" name="mainRequiredEnabled" value="1"
+      {% if settings.main_required_enabled == 1 %} checked {% endif %}>
+  </div>
+  <div class="col-auto">
+    <label>3명당 메인안주 수:</label>
+    <input type="number" name="mainAnjuRatio" class="form-control"
+           value="{{ settings.main_anju_ratio }}">
+  </div>
+  <div class="col-auto">
+    <label>맥주 제한 사용:</label><br>
+    <input type="checkbox" name="beerLimitEnabled" value="1"
+      {% if settings.beer_limit_enabled == 1 %} checked {% endif %}>
+    (최대 <input type="number" name="beerLimitCount" value="{{ settings.beer_limit_count }}" style="width:60px;"> 병)
+  </div>
+  <div class="col-auto">
+    <label>주의 시간1 (분):</label>
+    <input type="number" name="timeWarning1" class="form-control"
+           value="{{ settings.time_warning1 }}">
+  </div>
+  <div class="col-auto">
+    <label>주의 시간2 (분):</label>
+    <input type="number" name="timeWarning2" class="form-control"
+           value="{{ settings.time_warning2 }}">
+  </div>
+  <div class="col-auto align-self-end">
+    <button class="btn btn-primary btn-sm">저장</button>
+  </div>
+</form>
+
 {% endblock %}
