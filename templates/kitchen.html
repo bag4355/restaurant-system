@@ -1,44 +1,47 @@
 {% extends "layout.html" %}
 {% block content %}
-<h2 class="mb-3"><i class="fas fa-hat-chef"></i> 주방용 페이지</h2>
+<h2>주방용 페이지</h2>
 
-<h4>✅ 확정된 주문</h4>
-<ol class="list-group list-group-numbered mb-4">
-  {% for o in paid_orders %}
-  <li class="list-group-item">
-    <strong>{{ o.id }}</strong> / 테이블 {{ o.tableNumber }}
-    {% if o.kitchenDone %}
-      <span class="badge bg-success">전체 완료</span>
-    {% endif %}
-    <ul class="mt-2">
-      {% for i in o.items %}
-      <li class="d-flex justify-content-between">
-        메뉴 {{ i.menuId }} — 남음: {{ i.quantity - i.doneQuantity }}
-        {% if i.doneQuantity < i.quantity %}
-        <form method="POST"
-              action="{{ url_for('kitchen_done_item',order_id=o.id,menu_id=i.menuId) }}">
-          <button class="btn btn-outline-secondary btn-sm">
-            <i class="fas fa-plus"></i> 조리 완료
-          </button>
-        </form>
-        {% endif %}
-      </li>
-      {% endfor %}
-    </ul>
-  </li>
-  {% endfor %}
-</ol>
+<h3>1) 현재 확정된(결제완료) 주문 목록</h3>
+{% for o in paid_orders %}
+  <div class="card mb-3">
+    <div class="card-header">
+      주문 {{ o.id }} / 테이블: {{ o.tableNumber }}
+    </div>
+    <div class="card-body">
+      <ul>
+        {% for i in o['items'] %}
+        <li>
+          메뉴ID {{ i.menuId }} /
+          주문수량 {{ i.quantity }} /
+          이미 조리완료 {{ i.doneQuantity }} /
+          남은수량 {{ i.quantity - i.doneQuantity }}
+          {% if i.doneQuantity < i.quantity %}
+            <form action="{{ url_for('kitchen_done_item', order_id=o.id, menu_id=i.menuId) }}"
+                  method="POST" style="display:inline;">
+              <button class="btn btn-sm btn-success">조리 1개 완료</button>
+            </form>
+          {% else %}
+            <span class="badge bg-success">완료</span>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+{% endfor %}
+{% if paid_orders|length == 0 %}
+  <p class="text-muted">확정된 주문이 없습니다.</p>
+{% endif %}
 
-<h4>🍳 전체 조리 대기 현황</h4>
-<ul class="list-group">
+<hr/>
+<h3>2) 현재 만들어야 할 전체 메뉴 수량(미조리 부분)</h3>
+<ul>
   {% for ks in kitchen_status %}
-    <li class="list-group-item">
-      {{ ks.menuName }}: {{ ks.count }}개
-    </li>
+  <li>{{ ks.menuName }}: {{ ks.count }}개</li>
   {% endfor %}
-  {% if not kitchen_status %}
-    <li class="list-group-item text-muted">준비할 메뉴가 없습니다.</li>
+  {% if kitchen_status|length == 0 %}
+    <li class="text-muted">현재 만들 메뉴가 없습니다.</li>
   {% endif %}
 </ul>
 {% endblock %}
-
