@@ -47,7 +47,12 @@
   <h4 class="mt-4">메뉴 선택</h4>
   <table class="table table-bordered align-middle">
     <thead class="table-light">
-      <tr><th>메뉴</th><th>가격</th><th>수량</th><th>품절?</th><th>재고</th></tr>
+      <tr>
+        <th>메뉴</th>
+        <th>가격</th>
+        <th>수량</th>
+        <th>품절여부</th>
+      </tr>
     </thead>
     <tbody>
       {% for m in menu_items %}
@@ -66,7 +71,6 @@
             <i class="fas fa-ban text-danger"></i>
           {% endif %}
         </td>
-        <td>{{ m.stock }}</td>
       </tr>
       {% endfor %}
     </tbody>
