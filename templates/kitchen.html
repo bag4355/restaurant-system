@@ -45,12 +45,12 @@
   </div>
   {% endfor %}
 {% else %}
-  <p class="text-muted">결제완료된 주문이 없습니다.</p>
+  <p class="text-muted">결제완료 상태의 주문이 없습니다.</p>
 {% endif %}
 
 <hr/>
 
-<h4>2) 만들어야 할 전체 메뉴 수량 (미조리 합계)</h4>
+<h4>2) 만들어야 할 전체 메뉴 수량(미조리 합계)</h4>
 {% if kitchen_status %}
   <table class="table table-bordered w-50">
     <thead class="table-light">
@@ -60,12 +60,12 @@
       </tr>
     </thead>
     <tbody>
-      {% for name, cnt in kitchen_status.items() %}
+    {% for name, cnt in kitchen_status.items() %}
       <tr>
         <td>{{ name }}</td>
         <td>{{ cnt }}</td>
       </tr>
-      {% endfor %}
+    {% endfor %}
     </tbody>
   </table>
 {% else %}
