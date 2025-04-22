@@ -2,9 +2,10 @@ import os
 import time
 import threading
 import math
+import traceback
 from flask import (
     Flask, request, render_template, redirect,
-    url_for, flash, session
+    url_for, flash, session, g
 )
 from dotenv import load_dotenv
 from sqlalchemy import (
@@ -13,7 +14,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
-from flask import g
 
 load_dotenv()
 
@@ -22,7 +22,6 @@ app.secret_key = os.urandom(24)
 
 # ─────────────────────────────────────────────────────────
 # AWS MySQL 접속 정보 & 관리자/주방 계정
-# (이 부분은 절대 수정하지 않음)
 # ─────────────────────────────────────────────────────────
 ADMIN_ID   = os.getenv("ADMIN_ID", "admin")
 ADMIN_PW   = os.getenv("ADMIN_PW", "admin123")
@@ -43,7 +42,7 @@ engine = create_engine(
     max_overflow=5,
     pool_timeout=30,
     pool_recycle=1800,
-    echo=False  # 필요시 True
+    echo=False
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -79,7 +78,7 @@ class Order(Base):
     tableNumber   = Column(String(50), nullable=False)
     peopleCount   = Column(Integer, nullable=False)
     totalPrice    = Column(Integer, nullable=False)
-    status        = Column(String(20), nullable=False)  # pending / paid / completed
+    status        = Column(String(20), nullable=False)
     createdAt     = Column(Integer, nullable=False)
     confirmedAt   = Column(Integer)
     alertTime1    = Column(Integer, nullable=False, default=0)
@@ -119,14 +118,12 @@ class Setting(Base):
     time_warning2         = Column(Integer, default=60)
 
 # ─────────────────────────────────────────────────────────
-# DB 초기화 및 로그
+# DB 초기화 및 로그 함수
 # ─────────────────────────────────────────────────────────
 def init_db():
     Base.metadata.create_all(bind=engine)
-
     db = SessionLocal()
     try:
-        # menu, settings 기본값
         if db.query(Menu).count() == 0:
             sample_menu = [
                 Menu(name="메인안주A", price=12000, category="main", stock=10, sold_out=False),
@@ -138,10 +135,9 @@ def init_db():
                 Menu(name="생수",     price=1000,  category="drink",stock=50,  sold_out=False),
             ]
             db.add_all(sample_menu)
-
         s = db.query(Setting).filter_by(id=1).first()
         if not s:
-            new_set = Setting(
+            db.add(Setting(
                 id=1,
                 main_required_enabled=True,
                 main_anju_ratio=3,
@@ -149,9 +145,7 @@ def init_db():
                 beer_limit_count=1,
                 time_warning1=50,
                 time_warning2=60
-            )
-            db.add(new_set)
-
+            ))
         db.commit()
     finally:
         db.close()
@@ -159,8 +153,7 @@ def init_db():
 def log_action(role, action, detail):
     db = get_db_session()
     now = int(time.time())
-    new_log = Log(time=now, role=role, action=action, detail=detail)
-    db.add(new_log)
+    db.add(Log(time=now, role=role, action=action, detail=detail))
     db.commit()
 
 def get_settings():
@@ -181,19 +174,16 @@ def update_settings(form_data):
         db.add(s)
         db.commit()
         db.refresh(s)
-
     s.main_required_enabled = (form_data.get("mainRequiredEnabled") == "1")
     s.beer_limit_enabled    = (form_data.get("beerLimitEnabled") == "1")
-
-    s.main_anju_ratio  = int(form_data.get("mainAnjuRatio", "3") or 3)
-    s.beer_limit_count = int(form_data.get("beerLimitCount", "1") or 1)
-    s.time_warning1    = int(form_data.get("timeWarning1", "50") or 50)
-    s.time_warning2    = int(form_data.get("timeWarning2", "60") or 60)
-
+    s.main_anju_ratio        = int(form_data.get("mainAnjuRatio",  "3") or 3)
+    s.beer_limit_count       = int(form_data.get("beerLimitCount", "1") or 1)
+    s.time_warning1          = int(form_data.get("timeWarning1",   "50") or 50)
+    s.time_warning2          = int(form_data.get("timeWarning2",   "60") or 60)
     db.commit()
 
 # ─────────────────────────────────────────────────────────
-# time_checker 쓰레드 (Flask3에서는 before_first_request 제거)
+# time_checker 쓰레드
 # ─────────────────────────────────────────────────────────
 time_checker_thread = None
 time_checker_started = False
@@ -216,52 +206,39 @@ def start_time_checker():
 
                 now_sec = int(time.time())
                 paid_orders = db.query(Order).filter(Order.status=="paid", Order.confirmedAt!=None).all()
-
                 for o in paid_orders:
                     diff_min = (now_sec - o.confirmedAt)//60
-                    if o.alertTime1 == 0 and diff_min >= s.time_warning1:
-                        o.alertTime1 = 1
-                        db.add(o)
+                    if o.alertTime1==0 and diff_min>=s.time_warning1:
+                        o.alertTime1=1; db.add(o); db.commit()
+                        db.add(Log(time=int(time.time()), role="system",
+                                   action="TIME_WARNING1", detail=f"order_id={o.order_id}"))
                         db.commit()
-                        # 로그
-                        log = Log(
-                            time=int(time.time()),
-                            role="system",
-                            action="TIME_WARNING1",
-                            detail=f"order_id={o.order_id}"
-                        )
-                        db.add(log)
+                    if o.alertTime2==0 and diff_min>=s.time_warning2:
+                        o.alertTime2=1; db.add(o); db.commit()
+                        db.add(Log(time=int(time.time()), role="system",
+                                   action="TIME_WARNING2", detail=f"order_id={o.order_id}"))
                         db.commit()
-
-                    if o.alertTime2 == 0 and diff_min >= s.time_warning2:
-                        o.alertTime2 = 1
-                        db.add(o)
-                        db.commit()
-                        log = Log(
-                            time=int(time.time()),
-                            role="system",
-                            action="TIME_WARNING2",
-                            detail=f"order_id={o.order_id}"
-                        )
-                        db.add(log)
-                        db.commit()
-
                 db.close()
-
             except Exception as ex:
-                print("[time_checker] 예외 발생:", ex)
-
-# (기존) @app.before_first_request → 제거  
-# 대신, 맨 아래 if __name__=="__main__": 에서 init_db()와 start_time_checker()를 직접 호출
+                print("[time_checker] 예외 발생:")
+                traceback.print_exc()
 
 # ─────────────────────────────────────────────────────────
-# 에러 핸들러
+# 에러 핸들러 (변경된 부분)
 # ─────────────────────────────────────────────────────────
 @app.errorhandler(SQLAlchemyError)
 def handle_sqlalchemy_error(e):
-    flash("DB 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", "error")
+    # 1) 콘솔(로그)에 전체 스택 트레이스 찍기
+    print("=== SQLAlchemyError 발생 ===")
+    traceback.print_exc()
+    # 2) 사용자에게도 예외 메시지 노출 (디버깅용)
+    flash(f"DB 오류: {str(e)}", "error")
     return redirect(url_for("index"))
 
+# ─────────────────────────────────────────────────────────
+# ... 이하 기존 로그인/주문/관리자/주방 라우트들 동일 ...
+# (생략하지 않고 그대로 유지해야 합니다)
+# ─────────────────────────────────────────────────────────
 # ─────────────────────────────────────────────────────────
 # 로그인 / 로그아웃
 # ─────────────────────────────────────────────────────────
