@@ -2,6 +2,43 @@
 {% block content %}
 <h2>관리자 페이지</h2>
 
+<!-- 테이블 현황 표시 -->
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title">테이블 현황</h5>
+    <div class="row">
+      {% for tinfo in table_status_info %}
+        {% set tableNum = tinfo[0] %}
+        {% set timeOrDash = tinfo[1] %}
+        {% set color = tinfo[2] %}
+        {% set blocked = tinfo[3] %}
+        {% set isEmpty = tinfo[4] %}
+        <div class="col-md-3 mb-2">
+          <div class="p-2 border {% if color=='red' %}bg-danger text-white{% elif color=='yellow' %}bg-warning{% elif color=='empty' %}bg-light{% else %}bg-white{% endif %}">
+            <strong>{{ tableNum }}</strong>
+            {% if blocked %}<span class="badge bg-dark">차단</span>{% endif %}
+            <div>{{ timeOrDash }}</div>
+            <!-- 비우기버튼 -->
+            {% if not isEmpty %}
+              <form action="{{ url_for('admin_empty_table', table_num=tableNum) }}" method="POST" class="d-inline">
+                <button class="btn btn-sm btn-outline-danger mt-2">empty</button>
+              </form>
+            {% endif %}
+            <!-- 차단토글 -->
+            <form action="{{ url_for('admin_block_table', table_num=tableNum) }}" method="POST" class="d-inline">
+              {% if blocked %}
+                <button class="btn btn-sm btn-outline-secondary mt-2">차단해제</button>
+              {% else %}
+                <button class="btn btn-sm btn-outline-secondary mt-2">차단</button>
+              {% endif %}
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
 <!-- 매출 표시 -->
 <div class="alert alert-info">
   <strong>현재 매출:</strong> {{ current_sales }}원
@@ -17,7 +54,14 @@
     <form method="POST" action="{{ url_for('admin_service') }}" class="row g-3">
       <div class="col-auto">
         <label>테이블:</label>
-        <input type="text" name="serviceTable" class="form-control" placeholder="예: 1 or TAKEOUT">
+        <!-- 12) 테이블 번호 객관식 -->
+        <select name="serviceTable" class="form-select">
+          <option value="">-- 선택 --</option>
+          <option value="TAKEOUT">TAKEOUT</option>
+          {% for tinfo in table_status_info if tinfo[0] != 'TAKEOUT' %}
+            <option value="{{ tinfo[0] }}">{{ tinfo[0] }}</option>
+          {% endfor %}
+        </select>
       </div>
       <div class="col-auto">
         <label>메뉴명:</label>
@@ -41,13 +85,29 @@
   </div>
 </div>
 
+<!-- 소트 모드 -->
+<div class="mb-3">
+  <span>정렬:</span>
+  <a href="{{ url_for('admin', sort='asc') }}" class="btn btn-sm {% if sort_mode=='asc' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+    오래된 순
+  </a>
+  <a href="{{ url_for('admin', sort='desc') }}" class="btn btn-sm {% if sort_mode=='desc' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+    최신 순
+  </a>
+</div>
+
 <!-- 1) 입금 확인(확정 전) 주문 -->
 <h4>입금 확인(확정 전) 주문</h4>
 {% if pending_orders %}
   {% for o in pending_orders %}
   <div class="card mb-3">
     <div class="card-header">
-      <strong>주문 {{ o.id }}</strong> (테이블: {{ o.tableNumber }}, 인원: {{ o.peopleCount }}명)
+      <strong>주문 {{ o.id }}</strong> 
+      (테이블: {{ o.tableNumber }}, 인원: {{ o.peopleCount }}명)
+      {% if o.is_first %}<span class="badge bg-info">최초 주문</span>{% else %}<span class="badge bg-secondary">추가 주문</span>{% endif %}
+      {% if o.recent_first_time %}
+        (가장 최근 최초 주문 시각: {{ o.recent_first_time }})
+      {% endif %}
     </div>
     <div class="card-body">
       <table class="table table-sm table-bordered mb-3">
@@ -67,9 +127,17 @@
         </tbody>
       </table>
       <p>총액: <strong>{{ o.totalPrice }}원</strong></p>
-      <form action="{{ url_for('admin_confirm', order_id=o.id) }}" method="POST">
-        <button class="btn btn-success">입금확인</button>
-      </form>
+      {% if o.stock_negative_warning %}
+        <p class="text-danger">※ 재고가 음수인 메뉴가 있습니다.</p>
+      {% endif %}
+      <div class="d-flex gap-2">
+        <form action="{{ url_for('admin_confirm', order_id=o.id) }}" method="POST">
+          <button class="btn btn-success">입금확인</button>
+        </form>
+        <form action="{{ url_for('admin_reject', order_id=o.id) }}" method="POST">
+          <button class="btn btn-danger">주문 거절</button>
+        </form>
+      </div>
     </div>
   </div>
   {% endfor %}
@@ -124,6 +192,10 @@
         {% endif %}
       </p>
 
+      <!-- TAKEOUT 주문이면 주문시각 표기 -->
+      {% if o.tableNumber=='TAKEOUT' %}
+        <p class="text-info">주문 시각: {{ "%06d"|format(o.createdAt) }}</p>
+      {% endif %}
       <!-- 최종 완료 -->
       <form action="{{ url_for('admin_complete', order_id=o.id) }}" method="POST">
         <button class="btn btn-outline-info">최종 완료</button>
@@ -153,16 +225,31 @@
   <p class="text-muted">완료된 주문이 없습니다.</p>
 {% endif %}
 
+<!-- 4) 거절된 주문 -->
+<h4 class="mt-4">거절된 주문</h4>
+{% if rejected_orders %}
+  <ul class="list-group">
+    {% for ro in rejected_orders %}
+    <li class="list-group-item">
+      <strong>주문 {{ ro.id }}</strong> (테이블 {{ ro.tableNumber }}) - 거절됨
+    </li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p class="text-muted">거절된 주문이 없습니다.</p>
+{% endif %}
+
 <hr/>
-<!-- 4) 메뉴 품절 관리 -->
-<h4>메뉴 품절 관리</h4>
+<!-- 5) 메뉴 품절 및 재고 수정 관리 -->
+<h4>메뉴 품절 및 재고 관리</h4>
 <table class="table table-striped">
   <thead>
     <tr>
       <th>메뉴명</th>
       <th>남은재고</th>
       <th>상태</th>
-      <th>동작</th>
+      <th>재고수정</th>
+      <th>품절토글</th>
     </tr>
   </thead>
   <tbody>
@@ -171,6 +258,12 @@
       <td>{{ m.name }}</td>
       <td>{{ m.stock }}</td>
       <td>{{ "품절" if m.soldOut else "재고있음" }}</td>
+      <td>
+        <form action="{{ url_for('admin_update_stock', menu_id=m.id) }}" method="POST" class="d-inline-flex">
+          <input type="number" name="new_stock" value="{{ m.stock }}" class="form-control form-control-sm" style="width:100px;">
+          <button class="btn btn-sm btn-secondary ms-2">적용</button>
+        </form>
+      </td>
       <td>
         <form action="{{ url_for('admin_soldout', menu_id=m.id) }}" method="POST">
           {% if m.soldOut %}
@@ -186,7 +279,7 @@
 </table>
 
 <hr/>
-<!-- 5) 제한사항 설정 -->
+<!-- 6) 제한사항 설정 -->
 <h4>제한사항 설정</h4>
 <form method="POST" action="{{ url_for('admin_update_settings') }}" class="row g-3 mb-5">
   <div class="col-auto">
@@ -195,7 +288,7 @@
       {% if settings.main_required_enabled %} checked {% endif %}>
   </div>
   <div class="col-auto">
-    <label>3명당 메인안주 수:</label>
+    <label>N명당 메인안주 수:</label>
     <input type="number" name="mainAnjuRatio" class="form-control"
            value="{{ settings.main_anju_ratio }}">
   </div>
@@ -214,6 +307,11 @@
     <label>주의 시간2 (분):</label>
     <input type="number" name="timeWarning2" class="form-control"
            value="{{ settings.time_warning2 }}">
+  </div>
+  <div class="col-auto">
+    <label>전체 테이블 수:</label>
+    <input type="number" name="totalTables" class="form-control"
+           value="{{ settings.total_tables }}">
   </div>
   <div class="col-auto align-self-end">
     <button class="btn btn-primary btn-sm">저장</button>
