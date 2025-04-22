@@ -24,9 +24,6 @@ app.secret_key = os.urandom(24)
 # AWS MySQL 접속 정보 & 관리자/주방 계정
 # (이 부분은 절대 수정하지 않음)
 # ─────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────
-# AWS MySQL 접속 정보 & 관리자/주방 계정
-# ─────────────────────────────────────────────────────────
 ADMIN_ID   = os.getenv("ADMIN_ID", "admin")
 ADMIN_PW   = os.getenv("ADMIN_PW", "admin123")
 KITCHEN_ID = os.getenv("KITCHEN_ID", "kitchen")
@@ -38,31 +35,15 @@ DB_NAME = os.getenv("DB_NAME", "mydatabase")
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASS = os.getenv("DB_PASS", "password")
 
-# ─────────────────────────────────────────────────────────
-# 1) DB_NAME이 없으면 자동 생성
-# ─────────────────────────────────────────────────────────
-root_url = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/"
-root_engine = create_engine(root_url)
-with root_engine.connect() as conn:
-    conn.execute(text(
-        f"CREATE DATABASE IF NOT EXISTS `{DB_NAME}` "
-        "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-    ))
+DB_URL = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
 
-# ─────────────────────────────────────────────────────────
-# 2) 애플리케이션 전용 엔진 생성
-# ─────────────────────────────────────────────────────────
-DB_URL = (
-    f"mysql+pymysql://{DB_USER}:{DB_PASS}"
-    f"@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
-)
 engine = create_engine(
     DB_URL,
     pool_size=10,
     max_overflow=5,
     pool_timeout=30,
     pool_recycle=1800,
-    echo=False
+    echo=False  # 필요시 True
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
