@@ -1,7 +1,6 @@
 import os
 import time
 import threading
-import math
 import traceback
 from flask import (
     Flask, request, render_template, redirect,
@@ -30,9 +29,9 @@ KITCHEN_PW = os.getenv("KITCHEN_PW", "kitchen123")
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "3306")
-DB_NAME = os.getenv("DB_NAME", "mydatabase")
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASS = os.getenv("DB_PASS", "password")
+DB_NAME = os.getenv("DB_NAME", "aifrestaurant")
+DB_USER = os.getenv("DB_USER", "appuser")
+DB_PASS = os.getenv("DB_PASS", "your_password")
 
 DB_URL = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
 
@@ -60,7 +59,7 @@ def remove_session(exception=None):
         db_session.close()
 
 # ─────────────────────────────────────────────────────────
-# DB 모델
+# DB 모델 정의
 # ─────────────────────────────────────────────────────────
 class Menu(Base):
     __tablename__ = "menu"
@@ -89,12 +88,12 @@ class Order(Base):
 
 class OrderItem(Base):
     __tablename__ = "order_items"
-    id               = Column(Integer, primary_key=True, autoincrement=True)
-    order_id         = Column(Integer, ForeignKey("orders.id"), nullable=False)
-    menu_id          = Column(Integer, ForeignKey("menu.id"), nullable=False)
-    quantity         = Column(Integer, nullable=False)
-    doneQuantity     = Column(Integer, nullable=False, default=0)
-    deliveredQuantity= Column(Integer, nullable=False, default=0)
+    id                = Column(Integer, primary_key=True, autoincrement=True)
+    order_id          = Column(Integer, ForeignKey("orders.id"), nullable=False)
+    menu_id           = Column(Integer, ForeignKey("menu.id"), nullable=False)
+    quantity          = Column(Integer, nullable=False)
+    doneQuantity      = Column(Integer, nullable=False, default=0)
+    deliveredQuantity = Column(Integer, nullable=False, default=0)
 
     order = relationship("Order", back_populates="items")
     menu  = relationship("Menu")
@@ -118,34 +117,25 @@ class Setting(Base):
     time_warning2         = Column(Integer, default=60)
 
 # ─────────────────────────────────────────────────────────
-# DB 초기화 및 로그 함수
+# DB 초기화 및 로그 헬퍼
 # ─────────────────────────────────────────────────────────
 def init_db():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
         if db.query(Menu).count() == 0:
-            sample_menu = [
-                Menu(name="메인안주A", price=12000, category="main", stock=10, sold_out=False),
-                Menu(name="메인안주B", price=15000, category="main", stock=7,  sold_out=False),
-                Menu(name="소주",     price=4000,  category="soju", stock=100, sold_out=False),
-                Menu(name="맥주(1L)", price=8000,  category="beer", stock=50,  sold_out=False),
-                Menu(name="콜라",     price=2000,  category="drink",stock=40,  sold_out=False),
-                Menu(name="사이다",   price=2000,  category="drink",stock=40,  sold_out=False),
-                Menu(name="생수",     price=1000,  category="drink",stock=50,  sold_out=False),
+            sample = [
+                Menu(name="메인안주A", price=12000, category="main", stock=10),
+                Menu(name="메인안주B", price=15000, category="main", stock=7),
+                Menu(name="소주",     price=4000,  category="soju", stock=100),
+                Menu(name="맥주(1L)", price=8000,  category="beer", stock=50),
+                Menu(name="콜라",     price=2000,  category="drink",stock=40),
+                Menu(name="사이다",   price=2000,  category="drink",stock=40),
+                Menu(name="생수",     price=1000,  category="drink",stock=50),
             ]
-            db.add_all(sample_menu)
-        s = db.query(Setting).filter_by(id=1).first()
-        if not s:
-            db.add(Setting(
-                id=1,
-                main_required_enabled=True,
-                main_anju_ratio=3,
-                beer_limit_enabled=True,
-                beer_limit_count=1,
-                time_warning1=50,
-                time_warning2=60
-            ))
+            db.add_all(sample)
+        if not db.query(Setting).filter_by(id=1).first():
+            db.add(Setting(id=1))
         db.commit()
     finally:
         db.close()
@@ -169,32 +159,25 @@ def get_settings():
 def update_settings(form_data):
     db = get_db_session()
     s = db.query(Setting).filter_by(id=1).first()
-    if not s:
-        s = Setting(id=1)
-        db.add(s)
-        db.commit()
-        db.refresh(s)
-    s.main_required_enabled = (form_data.get("mainRequiredEnabled") == "1")
-    s.beer_limit_enabled    = (form_data.get("beerLimitEnabled") == "1")
-    s.main_anju_ratio        = int(form_data.get("mainAnjuRatio",  "3") or 3)
-    s.beer_limit_count       = int(form_data.get("beerLimitCount", "1") or 1)
-    s.time_warning1          = int(form_data.get("timeWarning1",   "50") or 50)
-    s.time_warning2          = int(form_data.get("timeWarning2",   "60") or 60)
+    s.main_required_enabled = (form_data.get("mainRequiredEnabled")=="1")
+    s.beer_limit_enabled    = (form_data.get("beerLimitEnabled")   =="1")
+    s.main_anju_ratio       = int(form_data.get("mainAnjuRatio","3") or 3)
+    s.beer_limit_count      = int(form_data.get("beerLimitCount","1") or 1)
+    s.time_warning1         = int(form_data.get("timeWarning1","50") or 50)
+    s.time_warning2         = int(form_data.get("timeWarning2","60") or 60)
     db.commit()
 
 # ─────────────────────────────────────────────────────────
 # time_checker 쓰레드
 # ─────────────────────────────────────────────────────────
-time_checker_thread = None
 time_checker_started = False
-
 def start_time_checker():
-    global time_checker_thread, time_checker_started
+    global time_checker_started
     if time_checker_started:
         return
     time_checker_started = True
 
-    def run_checker():
+    def worker():
         while True:
             time.sleep(60)
             try:
@@ -203,36 +186,41 @@ def start_time_checker():
                 if not s:
                     db.close()
                     continue
-
                 now_sec = int(time.time())
-                paid_orders = db.query(Order).filter(Order.status=="paid", Order.confirmedAt!=None).all()
-                for o in paid_orders:
-                    diff_min = (now_sec - o.confirmedAt)//60
-                    if o.alertTime1==0 and diff_min>=s.time_warning1:
-                        o.alertTime1=1; db.add(o); db.commit()
+                paid = db.query(Order).filter(Order.status=="paid", Order.confirmedAt!=None).all()
+                for o in paid:
+                    diff = (now_sec - o.confirmedAt)//60
+                    if o.alertTime1==0 and diff>=s.time_warning1:
+                        o.alertTime1=1; db.commit()
                         db.add(Log(time=int(time.time()), role="system",
                                    action="TIME_WARNING1", detail=f"order_id={o.order_id}"))
                         db.commit()
-                    if o.alertTime2==0 and diff_min>=s.time_warning2:
-                        o.alertTime2=1; db.add(o); db.commit()
+                    if o.alertTime2==0 and diff>=s.time_warning2:
+                        o.alertTime2=1; db.commit()
                         db.add(Log(time=int(time.time()), role="system",
                                    action="TIME_WARNING2", detail=f"order_id={o.order_id}"))
                         db.commit()
                 db.close()
-            except Exception as ex:
-                print("[time_checker] 예외 발생:")
+            except Exception:
                 traceback.print_exc()
 
+    threading.Thread(target=worker, daemon=True).start()
+
 # ─────────────────────────────────────────────────────────
-# 에러 핸들러 (변경된 부분)
+# 애플리케이션 스타트업 훅 (gunicorn 등에서 동작)
+# ─────────────────────────────────────────────────────────
+@app.before_serving
+def startup():
+    init_db()
+    start_time_checker()
+
+# ─────────────────────────────────────────────────────────
+# 에러 핸들러 (디버깅용)
 # ─────────────────────────────────────────────────────────
 @app.errorhandler(SQLAlchemyError)
 def handle_sqlalchemy_error(e):
-    # 1) 콘솔(로그)에 전체 스택 트레이스 찍기
-    print("=== SQLAlchemyError 발생 ===")
     traceback.print_exc()
-    # 2) 사용자에게도 예외 메시지 노출 (디버깅용)
-    flash(f"DB 오류: {str(e)}", "error")
+    flash(f"DB 오류: {e}", "error")
     return redirect(url_for("index"))
 
 # ─────────────────────────────────────────────────────────
