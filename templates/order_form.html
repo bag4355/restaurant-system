@@ -12,9 +12,8 @@
     <label class="form-label">테이블 번호</label>
     <select name="tableNumber" class="form-select">
       <option value="">-- 선택 --</option>
-      <option value="TAKEOUT">TAKEOUT</option>
-      {% for i in range(13) %}
-        <option value="{{ i }}">{{ i }}번</option>
+      {% for t in table_numbers %}
+        <option value="{{ t }}">{{ t }}</option>
       {% endfor %}
     </select>
   </div>
@@ -30,8 +29,8 @@
     <h6>주의사항</h6>
     <ul class="mb-0">
       <li>이용시간은 최초 주문 시점부터 60분입니다.</li>
-      <li>3명당 메인안주 1개 필수 (관리자 설정에 따라 비활성화 가능)</li>
-      <li>맥주는 1병(1L)까지 (관리자 설정에 따라 비활성화 가능)</li>
+      <li>3명(or N명)당 메인안주 1개 필수 (관리자 설정에 따라 비활성화 가능)</li>
+      <li>맥주는 설정된 병(1L)까지 (관리자 설정에 따라 비활성화 가능)</li>
     </ul>
     <div class="form-check mt-2">
       <input class="form-check-input" type="checkbox" id="noticeChecked" name="noticeChecked">
