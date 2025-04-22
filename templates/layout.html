@@ -30,6 +30,17 @@
       </a>
       <ul class="navbar-nav ms-auto">
         {% if session.role %}
+          <!-- 8번 요구사항: 로그인하면 관리자/주방 페이지가 뜸 -->
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('admin') }}">
+              <i class="fas fa-user-shield"></i> 관리자 페이지
+            </a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="{{ url_for('kitchen') }}">
+              <i class="fas fa-hat-chef"></i> 주방 페이지
+            </a>
+          </li>
           <li class="nav-item">
             <span class="nav-link">User: {{ session.role }}</span>
           </li>
@@ -89,3 +100,4 @@
   <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
+
