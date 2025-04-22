@@ -10,7 +10,7 @@ from flask import (
 from dotenv import load_dotenv
 from sqlalchemy import (
     create_engine, Column, Integer, String,
-    Boolean, ForeignKey, text
+    Boolean, ForeignKey, func, or_
 )
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
@@ -392,9 +392,13 @@ def admin():
         "soldOut": m.sold_out
     } for m in db.query(Menu).all()]
 
+    # 수정된 매출 계산: Order 모델에서 직접 sum
     sales_sum = db.query(
-        text("SUM(totalPrice)")
-    ).filter(text("service=0 AND (status='paid' OR status='completed')")).scalar() or 0
+        func.coalesce(func.sum(Order.totalPrice), 0)
+    ).filter(
+        Order.service == False,
+        or_(Order.status == "paid", Order.status == "completed")
+    ).scalar()
 
     settings = get_settings()
 
@@ -605,9 +609,6 @@ def kitchen_done_item(order_id, menu_name):
         flash("조리 완료 처리 중 오류가 발생했습니다.", "error")
     return redirect(url_for("kitchen"))
 
-# ─────────────────────────────────────────────────────────
-# 모듈 임포트 시 자동 실행
-# ─────────────────────────────────────────────────────────
 init_db()
 start_time_checker()
 
