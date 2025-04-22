@@ -103,16 +103,13 @@
     <div class="card-header">
       <strong>주문 {{ o.id }}</strong>
       (테이블: {{ o.tableNumber }}, 인원: {{ o.peopleCount }}명)
-      {% if o.is_first %}
-        <span class="badge bg-info">최초 주문</span>
-      {% else %}
-        <span class="badge bg-secondary">추가 주문</span>
-      {% endif %}
+      {% if o.is_first %}<span class="badge bg-info">최초 주문</span>{% else %}<span class="badge bg-secondary">추가 주문</span>{% endif %}
       {% if o.recent_first_time %}
         (가장 최근 최초 주문 시각: {{ o.recent_first_time }})
       {% endif %}
     </div>
     <div class="card-body">
+      <p>주문 시각: {{ "%06d"|format(o.createdAt) }}</p>
       <table class="table table-sm table-bordered mb-3">
         <thead class="table-light">
           <tr>
@@ -121,7 +118,7 @@
           </tr>
         </thead>
         <tbody>
-          {% for it in o.items %}
+          {% for it in o["items"] %}
           <tr>
             <td>{{ it.menuName }}</td>
             <td>{{ it.quantity }}</td>
@@ -157,9 +154,7 @@
       <strong>주문 {{ o.id }}</strong> (테이블: {{ o.tableNumber }})
     </div>
     <div class="card-body">
-      <!-- 3) 모든 주문에 대해 주문시각 표시 -->
       <p>주문 시각: {{ "%06d"|format(o.createdAt) }}</p>
-
       <table class="table table-sm table-bordered mb-3">
         <thead class="table-light">
           <tr>
@@ -167,25 +162,31 @@
             <th>주문수량</th>
             <th>조리완료</th>
             <th>전달됨</th>
-            <th>작업</th>
+            <th>전달 버튼</th>
           </tr>
         </thead>
         <tbody>
-          {% for it in o.items %}
+          {% for it in o["items"] %}
           <tr>
             <td>{{ it.menuName }}</td>
             <td>{{ it.quantity }}</td>
             <td>{{ it.doneQuantity }}</td>
             <td>{{ it.deliveredQuantity }}</td>
             <td>
-              {% set leftToDeliver = it.doneQuantity - it.deliveredQuantity %}
-              {% if leftToDeliver > 0 %}
-                <!-- 2) 주방페이지처럼 여러개 전달 -->
-                {% for n in range(1, leftToDeliver+1) %}
-                  <form action="{{ url_for('admin_deliver_item_count', order_id=o.id, menu_name=it.menuName, count=n) }}"
-                        method="POST" style="display:inline;">
-                    <button class="btn btn-sm btn-primary mb-1">+{{ n }}</button>
+              {% set deliverable = it.doneQuantity - it.deliveredQuantity %}
+              {% if deliverable > 0 %}
+                <!-- 여러 개 전달 버튼 (1개부터 deliverable개까지) -->
+                {% for i in range(1, deliverable+1) %}
+                  <form action="{{ url_for('admin_deliver_item_count',
+                                           order_id=o.id,
+                                           menu_name=it.menuName,
+                                           count=i) }}"
+                        method="POST"
+                        style="display:inline;">
+                    <button class="btn btn-sm btn-primary mb-1">+{{ i }}</button>
                   </form>
+                {% else %}
+                  <span class="text-muted">-</span>
                 {% endfor %}
               {% else %}
                 <span class="text-muted">-</span>
@@ -201,7 +202,6 @@
           <span class="badge bg-warning text-dark">서비스</span>
         {% endif %}
       </p>
-
       <!-- 최종 완료 -->
       <form action="{{ url_for('admin_complete', order_id=o.id) }}" method="POST">
         <button class="btn btn-outline-info">최종 완료</button>
@@ -217,13 +217,15 @@
 <h4 class="mt-4">완료된 주문</h4>
 {% if completed_orders %}
   <ul class="list-group">
-    {% for co in completed_orders %}
+    {% for o in completed_orders %}
     <li class="list-group-item">
-      <strong>주문 {{ co.id }}</strong> (테이블 {{ co.tableNumber }}) / {{ co.totalPrice }}원
-      {% if co.service %}
+      <strong>주문 {{ o.id }}</strong> (테이블 {{ o.tableNumber }}) / {{ o.totalPrice }}원
+      {% if o.service %}
         <span class="badge bg-warning text-dark">서비스</span>
       {% endif %}
-      - 완료됨
+      <br/>
+      <small>주문 시각: {{ "%06d"|format(o.createdAt) }}</small>
+      <br/>- 완료됨
     </li>
     {% endfor %}
   </ul>
@@ -237,7 +239,9 @@
   <ul class="list-group">
     {% for ro in rejected_orders %}
     <li class="list-group-item">
-      <strong>주문 {{ ro.id }}</strong> (테이블 {{ ro.tableNumber }}) - 거절됨
+      <strong>주문 {{ ro.id }}</strong> (테이블 {{ ro.tableNumber }})
+      <br/>주문 시각: {{ "%06d"|format(ro.createdAt) }}
+      <br/>- 거절됨
     </li>
     {% endfor %}
   </ul>
@@ -246,7 +250,7 @@
 {% endif %}
 
 <hr/>
-<!-- 5) 메뉴 품절 및 재고 수정 관리 -->
+<!-- 메뉴 품절 및 재고 수정 -->
 <h4>메뉴 품절 및 재고 관리</h4>
 <table class="table table-striped">
   <thead>
@@ -285,7 +289,7 @@
 </table>
 
 <hr/>
-<!-- 6) 제한사항 설정 -->
+<!-- 제한사항 설정 -->
 <h4>제한사항 설정</h4>
 <form method="POST" action="{{ url_for('admin_update_settings') }}" class="row g-3 mb-5">
   <div class="col-auto">
@@ -294,15 +298,14 @@
       {% if settings.main_required_enabled %} checked {% endif %}>
   </div>
   <div class="col-auto">
-    <label>N명당 메인안주:</label>
-    <div class="input-group">
-      <span class="input-group-text">N=</span>
-      <input type="number" name="mainAnjuPeople" class="form-control"
-             value="{{ settings.main_anju_people }}">
-      <span class="input-group-text">M=</span>
-      <input type="number" name="mainAnjuCount" class="form-control"
-             value="{{ settings.main_anju_count }}">
-    </div>
+    <label>N명당:</label>
+    <input type="number" name="mainAnjuPeople" class="form-control"
+           value="{{ settings.main_anju_people }}">
+  </div>
+  <div class="col-auto">
+    <label>메인안주 M개:</label>
+    <input type="number" name="mainAnjuCount" class="form-control"
+           value="{{ settings.main_anju_count }}">
   </div>
   <div class="col-auto">
     <label>맥주 제한 사용:</label><br>
