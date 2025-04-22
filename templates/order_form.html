@@ -29,8 +29,20 @@
     <h6>주의사항</h6>
     <ul class="mb-0">
       <li>이용시간은 최초 주문 시점부터 60분입니다.</li>
-      <li>3명당 메인안주 1개 필수입니다.</li>
-      <li>맥주는 재고상 최초 주문시 1병만 제공합니다.</li>
+      <li>
+        {% if settings.main_required_enabled %}
+          {{ settings.main_anju_people }}명당 {{ settings.main_anju_count }}개의 메인안주 필수입니다.
+        {% else %}
+          (메인안주 필수 규정 미적용)
+        {% endif %}
+      </li>
+      <li>
+        {% if settings.beer_limit_enabled %}
+          맥주는 최초 주문 시 최대 {{ settings.beer_limit_count }}병까지 입니다.
+        {% else %}
+          맥주 제한 없음
+        {% endif %}
+      </li>
     </ul>
     <div class="form-check mt-2">
       <input class="form-check-input" type="checkbox" id="noticeChecked" name="noticeChecked">
