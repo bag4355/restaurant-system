@@ -2,61 +2,14 @@
 {% block content %}
 <h2>주방용 페이지</h2>
 
-<h4>1) 현재 결제확정된 주문 목록</h4>
-{% if paid_orders %}
-  {% for o in paid_orders %}
-  <div class="card mb-3">
-    <div class="card-header">
-      <strong>주문 {{ o.id }}</strong> (테이블: {{ o.tableNumber }})
-    </div>
-    <div class="card-body">
-      <table class="table table-sm table-bordered">
-        <thead class="table-light">
-          <tr>
-            <th>메뉴</th>
-            <th>주문수량</th>
-            <th>조리완료</th>
-            <th>남은수량</th>
-            <th>조리 버튼</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for it in o["items"] %}
-          <tr>
-            <td>{{ it.menuName }}</td>
-            <td>{{ it.quantity }}</td>
-            <td>{{ it.doneQuantity }}</td>
-            <td>{{ it.quantity - it.doneQuantity }}</td>
-            <td>
-              {% if it.doneQuantity < it.quantity %}
-                <form action="{{ url_for('kitchen_done_item', order_id=o.id, menu_name=it.menuName) }}"
-                      method="POST" style="display:inline;">
-                  <button class="btn btn-sm btn-success">조리 1개 완료</button>
-                </form>
-              {% else %}
-                <span class="badge bg-success">완료</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endfor %}
-{% else %}
-  <p class="text-muted">결제완료 상태의 주문이 없습니다.</p>
-{% endif %}
-
-<hr/>
-
-<h4>2) 만들어야 할 전체 메뉴 수량(미조리 합계)</h4>
+<h4>만들어야 할 전체 메뉴 수량(미조리 합계)</h4>
 {% if kitchen_status %}
   <table class="table table-bordered w-50">
     <thead class="table-light">
       <tr>
         <th>메뉴</th>
         <th>남은 조리수량</th>
+        <th>조리 버튼</th>
       </tr>
     </thead>
     <tbody>
@@ -64,6 +17,13 @@
       <tr>
         <td>{{ name }}</td>
         <td>{{ cnt }}</td>
+        <td>
+          {% for i in range(1, cnt+1) %}
+            <form action="{{ url_for('kitchen_done_item', menu_name=name, count=i) }}" method="POST" style="display:inline;">
+              <button class="btn btn-sm btn-success mb-1">+{{ i }}</button>
+            </form>
+          {% endfor %}
+        </td>
       </tr>
     {% endfor %}
     </tbody>
@@ -72,4 +32,3 @@
   <p class="text-muted">현재 만들 메뉴가 없습니다.</p>
 {% endif %}
 {% endblock %}
-
