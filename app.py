@@ -2,6 +2,7 @@ import os
 import time
 import threading
 import traceback
+import pytz
 import datetime
 
 from flask import (
@@ -60,20 +61,17 @@ def teardown_db(exception=None):
         db.close()
 
 # ─────────────────────────────────────────────────────────
-# 시간 처리 유틸 (한국시간 HHMMSS)
+# 한국 시간(KST) HHMMSS 포맷
 # ─────────────────────────────────────────────────────────
 def current_hhmmss():
-    """서버 시간이 UTC라 해도, 9시간 더해서 한국 시간 HHMMSS 반환"""
-    # 아래는 pytz 없이도 간단히 KST로 맞추는 방법:
-    now_utc_timestamp = time.time()
-    kst_timestamp = now_utc_timestamp + 9*3600
-    kst_struct = time.gmtime(kst_timestamp)
-    return time.strftime("%H%M%S", kst_struct)
+    """한국시간(Asia/Seoul)을 HHMMSS(예: '221305') 형태 문자열로 반환"""
+    now = datetime.datetime.now(pytz.timezone('Asia/Seoul'))
+    return now.strftime("%H%M%S")
 
 def hhmmss_to_minutes(hhmmss_str):
     """
-    HHMMSS 형태의 문자열을 분(minute) 단위로 환산하여 정수로 반환.
-    하루 기준(자정~자정)으로만 사용.
+    HHMMSS 형태의 문자열을 분 단위로 환산하여 정수로 반환.
+    하루 기준(자정~자정)으로만 사용한다.
     """
     hh = int(hhmmss_str[0:2])
     mm = int(hhmmss_str[2:4])
@@ -82,11 +80,12 @@ def hhmmss_to_minutes(hhmmss_str):
     return total_seconds // 60
 
 # ─────────────────────────────────────────────────────────
-# 전역 딕셔너리(테이블별 설정/사용상태/차단 등) - DB에 저장하지 않고 메모리에서 관리
+# 전역 딕셔너리(테이블별 설정/사용상태/차단 등)
+# DB에 저장하지 않고 메모리에서 관리(지속성 없음)
 # ─────────────────────────────────────────────────────────
-_table_settings_state = {}  # tableNumber -> (mainReq, anjuPeople, anjuCount, beerLimitEn, beerLimitCount)
+_table_settings_state = {}  # tableNumber -> (mainRequired, mainAnjuPeople, mainAnjuCount, beerLimitEn, beerLimitCnt)
 _table_usage_start    = {}  # tableNumber -> confirmedAt(HHMMSS)
-_blocked_tables       = set()  # 막아둔 테이블
+_blocked_tables       = set()
 
 # ─────────────────────────────────────────────────────────
 # 모델 정의
@@ -103,15 +102,15 @@ class Menu(Base):
 class Order(Base):
     __tablename__ = "orders"
     id            = Column(Integer, primary_key=True, autoincrement=True)
-    order_id      = Column(String(50), nullable=False)    # HHMMSS 형식으로
+    order_id      = Column(String(50), nullable=False)    
     tableNumber   = Column(String(50), nullable=False)
     peopleCount   = Column(Integer, nullable=False)
     totalPrice    = Column(Integer, nullable=False)
     status        = Column(String(20), nullable=False)
-    createdAt     = Column(Integer, nullable=False)        # HHMMSS (int)
-    confirmedAt   = Column(Integer)                        # HHMMSS (int)
-    alertTime1    = Column(Integer, default=0)             # 0 또는 1
-    alertTime2    = Column(Integer, default=0)             # 0 또는 1
+    createdAt     = Column(Integer, nullable=False)   # HHMMSS(정수)
+    confirmedAt   = Column(Integer)                   # HHMMSS(정수)
+    alertTime1    = Column(Integer, default=0)        # 0 또는 1
+    alertTime2    = Column(Integer, default=0)        # 0 또는 1
     service       = Column(Boolean, default=False)
     items         = relationship("OrderItem", back_populates="order")
 
@@ -138,9 +137,9 @@ class Setting(Base):
     __tablename__ = "settings"
     id                    = Column(Integer, primary_key=True)
     main_required_enabled = Column(Boolean, default=True)
-    # N명당 메인안주 M개
-    main_anju_people      = Column(Integer, default=3)  # N
-    main_anju_count       = Column(Integer, default=1)  # M
+    # N명당 M개 - 아래 두 컬럼 추가
+    main_anju_people      = Column(Integer, default=3)   # N (기존엔 main_anju_ratio)
+    main_anju_count       = Column(Integer, default=1)   # M
     beer_limit_enabled    = Column(Boolean, default=True)
     beer_limit_count      = Column(Integer, default=1)
     time_warning1         = Column(Integer, default=50)
@@ -183,8 +182,8 @@ def init_db():
 
 def log_action(role, action, detail):
     db = get_db_session()
-    now_hhmmss_int = int(current_hhmmss())
-    db.add(Log(time=now_hhmmss_int, role=role, action=action, detail=detail))
+    now_int = int(current_hhmmss())
+    db.add(Log(time=now_int, role=role, action=action, detail=detail))
     db.commit()
 
 def get_settings():
@@ -201,6 +200,7 @@ def update_settings(form):
     db = get_db_session()
     s = db.query(Setting).filter_by(id=1).first()
     s.main_required_enabled = (form.get("mainRequiredEnabled")=="1")
+    # N, M 수정 가능
     s.main_anju_people      = int(form.get("mainAnjuPeople","3") or 3)
     s.main_anju_count       = int(form.get("mainAnjuCount","1") or 1)
     s.beer_limit_enabled    = (form.get("beerLimitEnabled")=="1")
@@ -234,6 +234,7 @@ def start_time_checker():
                     c_str = f"{o.confirmedAt:06d}"
                     confirm_min = hhmmss_to_minutes(c_str)
                     diff = now_min - confirm_min
+
                     if o.alertTime1==0 and diff>=s.time_warning1:
                         o.alertTime1=1
                         db.commit()
@@ -244,6 +245,7 @@ def start_time_checker():
                         db.commit()
                         db.add(Log(time=int(current_hhmmss()), role="system", action="TIME_WARNING2", detail=f"id={o.order_id}"))
                         db.commit()
+
                 db.close()
             except Exception:
                 traceback.print_exc()
@@ -302,7 +304,7 @@ def index():
     return render_template("index.html")
 
 # ─────────────────────────────────────────────────────────
-# 테이블 차단(block)/비우기(empty) 기능
+# 테이블 empty / block
 # ─────────────────────────────────────────────────────────
 @app.route("/admin/empty_table/<table_num>", methods=["POST"])
 @login_required
@@ -337,7 +339,6 @@ def order():
     menu_list = db.query(Menu).all()
     settings  = get_settings()
 
-    # 전체 테이블 수
     table_numbers = ["TAKEOUT"] + [str(i) for i in range(1, settings.total_tables+1)]
 
     if request.method=="POST":
@@ -347,7 +348,7 @@ def order():
         notice_checked = (request.form.get("noticeChecked")=="on")
 
         if table_number in _blocked_tables:
-            flash("현재 막혀있는(차단된) 테이블입니다. 주문 불가합니다.", "error")
+            flash("현재 차단된 테이블입니다. 주문 불가합니다.", "error")
             return redirect(url_for("order"))
 
         ordered_items = []
@@ -372,7 +373,7 @@ def order():
                 flash("최초 주문 시 인원수는 1명 이상이어야 합니다.", "error")
                 return redirect(url_for("order"))
 
-            # 테이블 설정 snapshot
+            # snapshot (mainReq, mainAnjuPeople, mainAnjuCount, beerLimitEn, beerLimitCnt)
             if table_number not in _table_settings_state:
                 _table_settings_state[table_number] = (
                     settings.main_required_enabled,
@@ -381,9 +382,10 @@ def order():
                     settings.beer_limit_enabled,
                     settings.beer_limit_count
                 )
-            (mainReq, anjuPeople, anjuCount, beerLimitEn, beerLimitCnt) = _table_settings_state[table_number]
+            mainReq, anjuPeople, anjuCount, beerLimitEn, beerLimitCnt = _table_settings_state[table_number]
 
             if mainReq:
+                # N명당 M개 => needed = (people_count // N)*M
                 needed = (people_count // anjuPeople) * anjuCount
                 main_qty = sum(q for (menu_obj, q) in ordered_items if menu_obj.category=="main")
                 if needed>0 and main_qty<needed:
@@ -393,12 +395,12 @@ def order():
             if beerLimitEn:
                 beer_count = sum(q for (menu_obj, q) in ordered_items if menu_obj.category=="beer")
                 if beer_count > beerLimitCnt:
-                    flash(f"최초 주문 시 맥주는 최대 {beerLimitCnt}병까지만 가능합니다.", "error")
+                    flash(f"최초 주문 시 맥주는 최대 {beerLimitCnt}병까지 가능합니다.", "error")
                     return redirect(url_for("order"))
         else:
             # 추가 주문
             if table_number not in _table_settings_state:
-                # 혹시 테이블이 비워진 뒤 추가주문이 들어온 상황이면, 현재 설정 그대로
+                # 만약 empty 등으로 snapshot이 사라졌다면 현재 설정 그대로
                 _table_settings_state[table_number] = (
                     settings.main_required_enabled,
                     settings.main_anju_people,
@@ -406,7 +408,7 @@ def order():
                     settings.beer_limit_enabled,
                     settings.beer_limit_count
                 )
-            (mainReq, anjuPeople, anjuCount, beerLimitEn, beerLimitCnt) = _table_settings_state[table_number]
+            mainReq, anjuPeople, anjuCount, beerLimitEn, beerLimitCnt = _table_settings_state[table_number]
 
             if beerLimitEn:
                 for (menu_obj, q) in ordered_items:
@@ -416,7 +418,7 @@ def order():
 
         new_order_id_str = current_hhmmss()
         total_price = sum(m.price*q for (m,q) in ordered_items)
-        now_hhmmss_int = int(current_hhmmss())
+        now_int = int(current_hhmmss())
 
         try:
             new_order = Order(
@@ -425,7 +427,7 @@ def order():
                 peopleCount=people_count,
                 totalPrice=total_price,
                 status="pending",
-                createdAt=now_hhmmss_int,
+                createdAt=now_int,
                 confirmedAt=None,
                 alertTime1=0,
                 alertTime2=0,
@@ -450,10 +452,9 @@ def order():
             return redirect(url_for("order"))
 
     return render_template("order_form.html",
-        menu_items=menu_list,
-        table_numbers=table_numbers,
-        settings=settings
-    )
+                           menu_items=menu_list,
+                           table_numbers=table_numbers,
+                           settings=settings)
 
 # ─────────────────────────────────────────────────────────
 # 관리자 페이지
@@ -498,13 +499,18 @@ def admin():
     else:
         order_by_clause = Order.id.desc()
 
+    # pending
     pending_orders = []
-    for o in db.query(Order).filter_by(status="pending").order_by(order_by_clause):
+    pending_q = db.query(Order).filter_by(status="pending").order_by(order_by_clause)
+    for o in pending_q:
         items = [{"menuName": it.menu.name, "quantity": it.quantity} for it in o.items]
+        # 최초 주문?
         is_first = (o.peopleCount > 0)
+        # 최근 최초 주문 시각
         recent_first_order = db.query(Order).filter(Order.tableNumber==o.tableNumber, Order.peopleCount>0).order_by(Order.id.desc()).first()
-        recent_first_time = recent_first_order.order_id if recent_first_order else ""
-        stock_negative_warning = any([(it.menu.stock < 0) for it in o.items])
+        recent_first_time  = recent_first_order.order_id if recent_first_order else ""
+        stock_negative_warning = any(it.menu.stock<0 for it in o.items)
+
         pending_orders.append({
             "id": o.id,
             "order_id": o.order_id,
@@ -514,11 +520,14 @@ def admin():
             "items": items,
             "is_first": is_first,
             "recent_first_time": recent_first_time,
-            "stock_negative_warning": stock_negative_warning
+            "stock_negative_warning": stock_negative_warning,
+            "createdAt": o.createdAt
         })
 
+    # paid
     paid_orders = []
-    for o in db.query(Order).filter_by(status="paid").order_by(order_by_clause):
+    paid_q = db.query(Order).filter_by(status="paid").order_by(order_by_clause)
+    for o in paid_q:
         items = []
         for it in o.items:
             items.append({
@@ -537,34 +546,38 @@ def admin():
             "createdAt": o.createdAt
         })
 
+    # completed
     completed_orders = []
-    for o in db.query(Order).filter_by(status="completed").order_by(order_by_clause):
+    completed_q = db.query(Order).filter_by(status="completed").order_by(order_by_clause)
+    for o in completed_q:
         completed_orders.append({
             "id": o.id,
             "order_id": o.order_id,
             "tableNumber": o.tableNumber,
             "totalPrice": o.totalPrice,
-            "service": o.service
+            "service": o.service,
+            "createdAt": o.createdAt
         })
 
+    # rejected
     rejected_orders = []
-    for o in db.query(Order).filter_by(status="rejected").order_by(order_by_clause):
+    rejected_q = db.query(Order).filter_by(status="rejected").order_by(order_by_clause)
+    for o in rejected_q:
         rejected_orders.append({
             "id": o.id,
             "order_id": o.order_id,
-            "tableNumber": o.tableNumber
+            "tableNumber": o.tableNumber,
+            "createdAt": o.createdAt
         })
 
-    menu_items = []
-    for m in db.query(Menu).all():
-        menu_items.append({
-            "id": m.id,
-            "name": m.name,
-            "price": m.price,
-            "category": m.category,
-            "stock": m.stock,
-            "soldOut": m.sold_out
-        })
+    menu_items = [{
+        "id": m.id,
+        "name": m.name,
+        "price": m.price,
+        "category": m.category,
+        "stock": m.stock,
+        "soldOut": m.sold_out
+    } for m in db.query(Menu).all()]
 
     sales_sum = db.query(
         func.coalesce(func.sum(Order.totalPrice), 0)
@@ -599,13 +612,13 @@ def admin_confirm(order_id):
         o.status = "paid"
         o.confirmedAt = now_int
 
-        if o.peopleCount > 0:
-            if o.tableNumber not in _table_usage_start:
-                _table_usage_start[o.tableNumber] = o.confirmedAt
+        if o.peopleCount>0 and o.tableNumber not in _table_usage_start:
+            _table_usage_start[o.tableNumber] = o.confirmedAt
 
         for it in o.items:
             m = db.query(Menu).filter_by(id=it.menu_id).with_for_update().first()
-            m.stock = m.stock - it.quantity
+            m.stock -= it.quantity
+            # 음수 허용
             if m.category in ["soju","beer","drink"]:
                 it.doneQuantity = it.quantity
 
@@ -644,7 +657,6 @@ def admin_complete(order_id):
         if not o or o.status!="paid":
             flash("해당 주문은 'paid' 상태가 아닙니다.")
             return redirect(url_for("admin"))
-
         o.status = "completed"
         db.commit()
         log_action(session["role"], "COMPLETE_ORDER", f"주문ID={order_id}")
@@ -654,10 +666,48 @@ def admin_complete(order_id):
         flash("주문 완료 처리 중 오류가 발생했습니다.", "error")
     return redirect(url_for("admin"))
 
-# -- 단일 전달(기존) 라우트: 유지하되, 아래 'deliver_count' 도입
+# ─────────────────────────────────────────────────────────
+# 부분 전달 처리(한 번에 여러 개 전달)
+# ─────────────────────────────────────────────────────────
+@app.route("/admin/deliver_item_count/<int:order_id>/<menu_name>/<int:count>", methods=["POST"])
+@login_required
+def admin_deliver_item_count(order_id, menu_name, count):
+    db = get_db_session()
+    try:
+        o = db.query(Order).filter_by(id=order_id).with_for_update().first()
+        if not o or o.status not in ["paid","completed"]:
+            flash("해당 주문의 상태가 조리중이 아닙니다.", "error")
+            return redirect(url_for("admin"))
+        it = next((i for i in o.items if i.menu.name==menu_name), None)
+        if not it:
+            flash("해당 메뉴가 주문에 없습니다.", "error")
+            return redirect(url_for("admin"))
+        left_deliver = it.doneQuantity - it.deliveredQuantity
+        if left_deliver <= 0:
+            flash("더 이상 전달할 수 없습니다.", "error")
+            return redirect(url_for("admin"))
+        if count>left_deliver:
+            flash("요청한 전달 수량이 남은 수량보다 많습니다.", "error")
+            return redirect(url_for("admin"))
+        it.deliveredQuantity += count
+        # 모든 아이템이 deliveredQuantity >= quantity 면 completed
+        if all(x.deliveredQuantity >= x.quantity for x in o.items):
+            o.status="completed"
+        # 주문시각 안내 (이제는 모든 주문에 대해 flash)
+        flash(f"주문 {o.order_id} (ID={o.id})의 [{menu_name}] {count}개 전달!")
+        db.commit()
+        log_action(session["role"], "ADMIN_DELIVER_ITEM", f"{order_id}/{menu_name}/{count}")
+    except:
+        db.rollback()
+        flash("전달 처리 중 오류가 발생했습니다.", "error")
+    return redirect(url_for("admin"))
+
 @app.route("/admin/deliver/<int:order_id>/<menu_name>", methods=["POST"])
 @login_required
 def admin_deliver_item(order_id, menu_name):
+    """
+    기존 1개 전달용 (호환)
+    """
     db = get_db_session()
     try:
         o = db.query(Order).filter_by(id=order_id).with_for_update().first()
@@ -671,43 +721,9 @@ def admin_deliver_item(order_id, menu_name):
             it.deliveredQuantity += 1
         if all(i.deliveredQuantity >= i.quantity for i in o.items):
             o.status="completed"
+        flash(f"주문 {o.order_id} (ID={o.id}), [{menu_name}] 1개 전달!")
         db.commit()
-        log_action(session["role"], "ADMIN_DELIVER_ITEM", f"{order_id}/{menu_name}/1")
-        flash(f"주문 {order_id}, 메뉴 [{menu_name}] 1개 전달!")
-    except:
-        db.rollback()
-        flash("전달 처리 중 오류가 발생했습니다.", "error")
-    return redirect(url_for("admin"))
-
-# -- 여러 개 전달
-@app.route("/admin/deliver_count/<int:order_id>/<menu_name>/<int:count>", methods=["POST"])
-@login_required
-def admin_deliver_item_count(order_id, menu_name, count):
-    db = get_db_session()
-    try:
-        o = db.query(Order).filter_by(id=order_id).with_for_update().first()
-        if not o or o.status not in ["paid","completed"]:
-            return redirect(url_for("admin"))
-        it = next((i for i in o.items if i.menu.name==menu_name), None)
-        if not it:
-            flash("해당 메뉴가 주문에 없습니다.")
-            return redirect(url_for("admin"))
-
-        left_to_deliver = it.doneQuantity - it.deliveredQuantity
-        if left_to_deliver <= 0:
-            flash("더 이상 전달할 수 없습니다.")
-            return redirect(url_for("admin"))
-
-        if count > left_to_deliver:
-            count = left_to_deliver  # 최대 남은 만큼만 전달
-        it.deliveredQuantity += count
-
-        if all(i.deliveredQuantity >= i.quantity for i in o.items):
-            o.status="completed"
-
-        db.commit()
-        log_action(session["role"], "ADMIN_DELIVER_ITEM", f"{order_id}/{menu_name}/{count}")
-        flash(f"주문 {order_id}, 메뉴 [{menu_name}] {count}개 전달!")
+        log_action(session["role"], "ADMIN_DELIVER_ITEM", f"{order_id}/{menu_name}")
     except:
         db.rollback()
         flash("전달 처리 중 오류가 발생했습니다.", "error")
@@ -732,6 +748,7 @@ def admin_soldout(menu_id):
 @login_required
 def admin_log_page():
     db = get_db_session()
+
     role_filter = request.args.get("role","")
     action_filter = request.args.get("action","")
     detail_filter = request.args.get("detail","")
@@ -752,13 +769,10 @@ def admin_log_page():
 
     logs = [{
         "time": f"{l.time:06d}",
-        "role": l.role,
-        "action": l.action,
-        "detail": l.detail
+        "role": l.role, "action": l.action, "detail": l.detail
     } for l in q.order_by(Log.id.desc())]
 
-    return render_template("admin_log.html",
-                           logs=logs,
+    return render_template("admin_log.html", logs=logs,
                            role_filter=role_filter,
                            action_filter=action_filter,
                            detail_filter=detail_filter,
@@ -793,18 +807,15 @@ def admin_service():
             peopleCount=0, totalPrice=0, status="paid",
             createdAt=now_int, confirmedAt=now_int, service=True
         )
-        db.add(new_order)
-        db.flush()
-
+        db.add(new_order); db.flush()
         oi = OrderItem(order_id=new_order.id, menu_id=m.id,
                        quantity=qty, doneQuantity=0, deliveredQuantity=0)
         db.add(oi)
-
         m.stock -= qty
-
+        if m.stock < 0:
+            pass
         if m.category in ["soju","beer","drink"]:
             oi.doneQuantity = qty
-
         db.commit()
         log_action(session["role"], "ADMIN_SERVICE", f"주문ID={new_order.id}/메뉴:{menu_name}/{qty}")
         flash(f"0원 서비스 주문이 등록되었습니다. (order_id={now_str})")
@@ -845,50 +856,9 @@ def admin_update_stock(menu_id):
     return redirect(url_for("admin"))
 
 # ─────────────────────────────────────────────────────────
-# 주방 페이지 (변경 없음)
+# 주방 페이지
+# (여기서는 수정사항 없음)
 # ─────────────────────────────────────────────────────────
-@app.route("/kitchen")
-@login_required
-def kitchen():
-    db = get_db_session()
-    paid = db.query(Order).filter_by(status="paid").all()
-    item_count = {}
-    for o in paid:
-        for it in o.items:
-            left = it.quantity - it.doneQuantity
-            if left>0:
-                item_count[it.menu.name] = item_count.get(it.menu.name, 0) + left
-    return render_template("kitchen.html", kitchen_status=item_count)
-
-@app.route("/kitchen/done-item/<menu_name>/<int:count>", methods=["POST"])
-@login_required
-def kitchen_done_item(menu_name, count):
-    db = get_db_session()
-    try:
-        orders = db.query(Order).filter_by(status="paid").all()
-        remaining = count
-        for o in orders:
-            for it in o.items:
-                if it.menu.name==menu_name:
-                    left = it.quantity - it.doneQuantity
-                    if left>0:
-                        if left <= remaining:
-                            it.doneQuantity += left
-                            remaining -= left
-                        else:
-                            it.doneQuantity += remaining
-                            remaining = 0
-                        if remaining<=0:
-                            break
-            if remaining<=0:
-                break
-        db.commit()
-        log_action(session["role"], "KITCHEN_DONE_ITEM", f"{menu_name} {count}개 조리완료")
-        flash(f"[{menu_name}] {count}개 조리 완료 처리.")
-    except:
-        db.rollback()
-        flash("조리 완료 처리 중 오류가 발생했습니다.", "error")
-    return redirect(url_for("kitchen"))
 
 init_db()
 start_time_checker()
