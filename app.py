@@ -146,21 +146,21 @@ def init_db():
         if db.query(Menu).count() == 0:
             sample_menus = [
                 # Main Dish
-                Menu(name="두부김치 (Rouge & Blanc)",       price=8000,  category="main",    stock=10),
-                Menu(name="포크찹 투움바 (Pork en Toowoomba)", price=15000, category="main",    stock=7),
+                Menu(name="두부김치 (Rouge & Blanc)",       price=18000,  category="main",    stock=40),
+                Menu(name="포크찹 투움바 (Pork en Toowoomba)", price=18000, category="main",    stock=40),
                 # Side Dish
-                Menu(name="먹태 (Grand Poisson)",           price=12000, category="side",    stock=5),
-                Menu(name="베이컨 떡말이 (Tteok Roulé)",      price=9000,  category="side",    stock=8),
+                Menu(name="먹태 (Grand Poisson)",           price=11000, category="side",    stock=25),
+                Menu(name="베이컨 떡말이 (Tteok Roulé)",      price=11000,  category="side",    stock=30),
                 # Dessert
-                Menu(name="화채 (Punch aux Fruits)",         price=7000,  category="dessert", stock=10),
+                Menu(name="화채 (Punch aux Fruits)",         price=9000,  category="dessert", stock=30),
                 # 기타
                 Menu(name="빵추가 (baguette)",               price=3000,  category="etc",     stock=20),
-                Menu(name="숙취해소제 (condition bâton)",      price=5000,  category="etc",     stock=15),
+                Menu(name="숙취해소제 2개 (condition bâton)",      price=5000,  category="etc",     stock=20),
                 # 주류/음료 (drink)
-                Menu(name="소주 (Le soju)",                 price=4000,  category="drink",   stock=50),
+                Menu(name="소주 (Le soju)",                 price=0,  category="drink",   stock=60),
                 Menu(name="사이다",                         price=2000,  category="drink",   stock=40),
                 Menu(name="환타 포도맛",                     price=2000,  category="drink",   stock=40),
-                Menu(name="생수 (1000원)",                   price=1000,  category="drink",   stock=50),
+                Menu(name="생수",                   price=1000,  category="drink",   stock=40),
             ]
             db.add_all(sample_menus)
 
