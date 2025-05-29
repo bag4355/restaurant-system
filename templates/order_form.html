@@ -1,4 +1,3 @@
-<!-- templates/order_form.html -->
 {% extends "layout.html" %}
 {% block content %}
 <h2 class="mb-3"><i class="fas fa-receipt"></i> 주문하기</h2>
@@ -10,7 +9,7 @@
 <form method="POST">
   <div class="mb-3">
     <label class="form-label">테이블 번호</label>
-    <select name="tableNumber" id="tableNumber" class="form-select">
+    <select name="tableNumber" id="tableNumber" class="form-select" required>
       <option value="">-- 선택 --</option>
       {% for t in table_numbers %}
         <option value="{{ t }}">{{ t }}</option>
@@ -18,10 +17,9 @@
     </select>
   </div>
 
-  <div id="phoneDiv" class="mb-3" style="display:none;">
-    <label class="form-label">휴대전화번호 (TAKEOUT 전용)</label>
-    <input type="text" name="phoneNumber" class="form-control"
-           placeholder="010-XXXX-XXXX">
+  <div id="phoneBlock" class="mb-3" style="display:none;">
+    <label class="form-label">휴대전화번호 (TAKEOUT)</label>
+    <input type="text" name="phoneNumber" class="form-control" placeholder="010-1234-5678">
   </div>
 
   <div class="mb-3">
@@ -35,10 +33,10 @@
   <div class="alert alert-info">
     <h6>주의사항</h6>
     <ul class="mb-0">
-      <li>최초 주문 시, 인원수 <strong>2명당 (Main / Side / Dessert 합쳐서) 메뉴 최소 1개</strong>가 필요합니다. <small>(예: 5명 ⇒ 3개)</small></li>
-      <li>또한 최초 주문 시, <strong>Main Dish 1개 이상</strong>을 반드시 포함해야 합니다.</li>
-      <li>이용시간은 최초 주문 시점부터 <strong>60분</strong>이며 연장 불가합니다. 퇴장 10분 전 안내드립니다.</li>
-      <li>주류(소주)는 무제한 제공이지만, <strong>기존 주류를 모두 소진</strong>한 경우에만 추가 주문이 가능합니다.</li>
+      <li>최초 주문 시, 인원수 <strong>2명당 (Main/Side/Dessert 합계 {{ settings.min_items_per_two }}개 이상)</strong>이 필요합니다. <small>(예: 5명 → 3개 이상)</small></li>
+      <li>또한 최초 주문 시, <strong>Main Dish {{ "필수" if settings.require_main else "선택" }}</strong>입니다.</li>
+      <li>이용시간은 최초 주문 시간으로부터 <strong>{{ settings.time_warning2 }}분</strong>입니다. 어떠한 경우에도 연장은 불가합니다. 퇴장 10분 전에 직원이 알려드리겠습니다.</li>
+      <li>주류(소주)는 무제한 제공이긴 하나, 기존에 주문하신 주류를 모두 소진한 것을 직원이 확인한 후에만 주문이 가능합니다.</li>
     </ul>
     <div class="form-check mt-2">
       <input class="form-check-input" type="checkbox" id="noticeChecked" name="noticeChecked">
@@ -53,7 +51,9 @@
 
   <h4 class="mt-4">메뉴 선택</h4>
   <table class="table table-bordered align-middle">
-    <thead class="table-light"><tr><th>메뉴</th><th>가격</th><th>수량</th><th>품절</th></tr></thead>
+    <thead class="table-light">
+      <tr><th>메뉴</th><th>가격</th><th>수량</th><th>품절여부</th></tr>
+    </thead>
     <tbody>
       {% for m in menu_items %}
       <tr>
@@ -63,8 +63,7 @@
           {% if m.sold_out %}
             <span class="text-danger">품절</span>
           {% else %}
-            <input type="number" name="qty_{{m.id}}" value="0" min="0"
-                   class="form-control w-50">
+            <input type="number" name="qty_{{m.id}}" value="0" min="0" class="form-control w-50">
           {% endif %}
         </td>
         <td>{% if m.sold_out %}<i class="fas fa-ban text-danger"></i>{% endif %}</td>
@@ -79,10 +78,9 @@
 </form>
 
 <script>
-  // TAKEOUT 선택 시 휴대폰 입력 필수
-  const tableSel=document.getElementById('tableNumber');
-  const phoneDiv=document.getElementById('phoneDiv');
-  function togglePhone(){ phoneDiv.style.display = (tableSel.value==='TAKEOUT')?'block':'none'; }
-  tableSel.addEventListener('change',togglePhone); togglePhone();
+document.getElementById('tableNumber').addEventListener('change', e=>{
+  const pb = document.getElementById('phoneBlock');
+  pb.style.display = (e.target.value==='TAKEOUT') ? 'block' : 'none';
+});
 </script>
 {% endblock %}
