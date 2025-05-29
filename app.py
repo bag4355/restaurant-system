@@ -145,7 +145,7 @@ def init_db():
             db.add_all([
                 Menu(name="안톤이고's best pick", price=29000, category="set", stock=40),
                 # Main
-                Menu(name="포크 앙 투움바 (Pork en Toowoomba), 떡말이가 아닌 베이컨 구이로 제공", price=18000, category="main", stock=50),
+                Menu(name="목살 (Grilled Pork), 떡말이가 아닌 베이컨 구이로 제공", price=18000, category="main", stock=50),
                 Menu(name="특급 볶음김치 (Grilled Kimchi)",        price=14000, category="main", stock=60),
                 # Side
                 Menu(name="베이컨 구이 (Grilled Bacon), 양 더 드림",       price=11000, category="side", stock=70),
