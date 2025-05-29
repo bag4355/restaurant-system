@@ -146,7 +146,7 @@ def init_db():
                 Menu(name="안톤이고's best pick", price=29000, category="set", stock=40),
                 # Main
                 Menu(name="포크 앙 투움바 (Pork en Toowoomba), 떡말이가 아닌 베이컨 구이로 제공", price=18000, category="main", stock=50),
-                Menu(name="루즈 & 블랑 (Rouge & Blanc)",        price=14000, category="main", stock=60),
+                Menu(name="루즈 & 블랑 (Rouge & Blanc) [마감했습니다. 주문 불가]",        price=14000, category="main", stock=60),
                 # Side
                 Menu(name="베이컨 구이 (Grilled Bacon), 양 더 드림",       price=11000, category="side", stock=70),
                 Menu(name="그랑 포와송 (Grand Poisson)", price=8000,  category="side", stock=70),
